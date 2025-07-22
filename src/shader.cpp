@@ -1,8 +1,5 @@
 #include "shader.hpp"
 
-Shader::Shader() { this->id = glCreateProgram(); }
-Shader::~Shader() {}
-
 void Shader::deinit() {
   delete_shaders();
   glDeleteProgram(this->id);

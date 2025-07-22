@@ -1,6 +1,10 @@
 #include "glad/glad.h"
+#include "glm/detail/func_trigonometric.hpp"
+#include "glm/detail/type_mat.hpp"
+#include "glm/detail/type_vec.hpp"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
+#include <cmath>
 #include <fontconfig/fontconfig.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -10,9 +14,7 @@
 #include <iostream>
 #include <ostream>
 
-#include "glm/detail/func_trigonometric.hpp"
-#include "glm/detail/type_mat.hpp"
-#include "glm/detail/type_vec.hpp"
+#include "camera.hpp"
 #include "shader.hpp"
 #include "texture2D.hpp"
 
@@ -22,25 +24,22 @@ float HEIGHT = 600.0;
 double FOV = 45.0;
 
 // FLY CAMERA
+FlyCamera p_camera(glm::vec3(0.0, 0.0, 3.0), FOV);
 float X_POS = WIDTH / 2;
 float Y_POS = HEIGHT / 2;
-float CAMERA_YAW = -90.0;
-float CAMERA_PITCH = 0;
-auto UP = glm::vec3(0.0, 1.0, 0.0);
-auto CAMERA_POSITION = glm::vec3(0.0, 0.0, 3.0);
-auto CAMERA_TARGET = glm::vec3(0.0, 0.0, 0.0);
-auto CAMERA_DIRECTION = CAMERA_TARGET - CAMERA_POSITION;
-auto CAMERA_FRONT = glm::vec3(0.0, 0.0, -1);
-glm::vec3 CAMERA_RIGHT = glm::normalize(glm::cross(CAMERA_FRONT, UP));
-
 // Time related stuff
 float TIME = 0;
 float LAST_TIME = 0;
 float DELTA = 0;
 
-// NORMAL OBJECTS
+// Basic k_linear + quadratic + constant for pointlight attenuation
+constexpr const float k_constant = 1;
+constexpr const float k_linear = 0.09;
+constexpr const float k_quadratic = 0.032;
+
+// NORMAL OBJECTS;
 const float normal_cube_vertices[]{
-    // bottom face
+    // bottom face // COLOR         // TEXTURE
     -0.5, -0.5, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, // bottom left
     0.5, -0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 0.0,  // bottom right
     -0.5, 0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 1.0,  // top left
@@ -52,7 +51,7 @@ const float normal_cube_vertices[]{
     0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 1.0,   // top right
 };
 
-const float light_cube_vertices[] = {
+float light_cube_vertices[] = {
     // bottom face
     -0.5, -0.5, -0.5, 1.0, 1.0, 1.0, 0.0, 0.0, // bottom left
     0.5, -0.5, -0.5, 1.0, 1.0, 1.0, 1.0, 0.0,  // bottom right
@@ -110,8 +109,10 @@ const unsigned int indices[] = {
     4,
 };
 
-const glm::vec3 normal_cubes_positions[] = {glm::vec3(0.0, 0.0, 0.0)};
-const glm::vec3 light_cubes_positions[] = {glm::vec3(1.2, 1.0, 2.0)};
+const glm::vec3 normal_cubes_positions[] = {
+    glm::vec3(0.0, 0.0, 0.0), glm::vec3(2.0),      glm::vec3(-2.0),
+    glm::vec3(-2, 2, 0),      glm::vec3(2, -2, 0), glm::vec3(10, 0, 10)};
+glm::vec3 light_cubes_positions[] = {glm::vec3(1.2, 1.0, 2.0)};
 
 void processInput(GLFWwindow *window);
 void resize_window_callback(GLFWwindow *window, int x, int y);
@@ -150,6 +151,7 @@ int main() {
   Shader shader_program;
   shader_program.add_shader<VertexShader>("../src/shaders/vertex.glsl");
   shader_program.add_shader<FragmentShader>("../src/shaders/fragment.glsl");
+
   shader_program.link();
 
   Shader light_shader_program;
@@ -185,6 +187,13 @@ int main() {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
 
+  Texture2D container_diffuse_map("../assets/textures/container2.png",
+                                  Texture2DBuilder{.format = Format::RGBA});
+  Texture2D container_specular_map("../assets/textures/container2_specular.png",
+                                   Texture2DBuilder{.format = Format::RGBA});
+  Texture2D container_emission_map("../assets/textures/matrix.jpg",
+                                   Texture2DBuilder{.format = Format::RGB});
+
   unsigned int LIGHT_VAO;
   glGenVertexArrays(1, &LIGHT_VAO);
 
@@ -213,21 +222,18 @@ int main() {
   glBindVertexArray(0);
 
   auto model = glm::mat4(1.0);
-  auto view = glm::lookAt(CAMERA_POSITION, CAMERA_POSITION + CAMERA_FRONT, UP);
+  auto view = p_camera.looking_at();
   auto projection = glm::perspective(glm::radians(static_cast<float>(FOV)),
                                      WIDTH / HEIGHT, 0.1f, 100.0f);
 
-  Texture2D texture_container("../assets/textures/container.jpg");
-  Texture2D texture_smiley(
-      "../assets/textures/awesomeface.png", Texture2D::WrapMode::Repeat,
-      Texture2D::WrapMode::Repeat, Texture2D::FilterMode::Linear,
-      Texture2D::FilterMode::Linear, Texture2D::Format::RGBA);
+  auto light_diffuse = glm::vec3(1.0);
+  auto light_specular = glm::vec3(0.5);
+  auto light_ambiant = glm::vec3(0.2);
 
   shader_program.use();
   shader_program.set_uniform("model", model);
   shader_program.set_uniform("view", view);
   shader_program.set_uniform("projection", projection);
-  shader_program.set_uniform("lightColor", glm::vec3{1.0f, 1.0f, 1.0f});
 
   light_shader_program.use();
   light_shader_program.set_uniform("model", model);
@@ -250,43 +256,73 @@ int main() {
 
     processInput(window);
 
-    const auto direction = glm::vec3(std::cos(glm::radians(CAMERA_YAW)),
-                                     std::sin(glm::radians(CAMERA_PITCH)),
-                                     std::sin(glm::radians(CAMERA_YAW)));
-    CAMERA_FRONT = glm::normalize(direction);
-
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture_container.get_id());
+    container_diffuse_map.bind();
+
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, texture_smiley.get_id());
+    container_specular_map.bind();
+
+    // make light cube move
+    const float radius = 15.0;
+    const float x = sin(TIME) * radius;
+    const float z = cos(TIME) * radius;
+    light_cubes_positions[0].x = x;
+    light_cubes_positions[0].z = z;
 
     glBindVertexArray(VAO);
     shader_program.use();
-    view = glm::lookAt(CAMERA_POSITION, CAMERA_POSITION + CAMERA_FRONT, UP);
+    view = p_camera.looking_at();
     shader_program.set_uniform("view", view);
+    shader_program.set_uniform("viewPos", p_camera.get_position());
 
-    projection = glm::perspective(glm::radians(static_cast<float>(FOV)),
-                                  WIDTH / HEIGHT, 0.1f, 100.0f);
+    // shader_program.set_uniform("light.direction", glm::vec3(0,-1,0));
+    shader_program.set_uniform_struct(
+        "light", SpotLight{.position = p_camera.get_position(),
+                           .direction = p_camera.forward(),
+                           .inner_cut_off = (float)glm::cos(glm::radians(12.5)),
+                           .outer_cut_off = (float)glm::cos(glm::radians(17.5)),
+                           .info = LightInfo{
+                               .ambient = light_ambiant,
+                               .specular = light_specular,
+                               .diffuse = light_diffuse,
+                           }});
+
+    shader_program.set_uniform("material.diffuse", 0);
+    shader_program.set_uniform("material.specular", 1);
+    shader_program.set_uniform("material.emission", 2);
+    shader_program.set_uniform("material.shininess", 32.0f);
+
+    projection =
+        glm::perspective(glm::radians(static_cast<float>(p_camera.get_fov())),
+                         WIDTH / HEIGHT, 0.1f, 100.0f);
     shader_program.set_uniform("projection", projection);
     for (const auto &position : normal_cubes_positions) {
-      shader_program.set_uniform("model",
-                                 glm::translate(glm::mat4(1.0f), position));
+      float rotation_speed = 0.5f + abs(position.x + position.y) * 0.3f;
+      glm::vec3 rotation_axis = glm::normalize(
+          glm::vec3(sin(position.x), cos(position.y), sin(position.z)));
+
+      auto model = glm::rotate(glm::translate(glm::mat4(1.0), position),
+                               (float)TIME * rotation_speed, rotation_axis);
+
+      shader_program.set_uniform("model", model);
       glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int),
                      GL_UNSIGNED_INT, nullptr);
     }
 
     glBindVertexArray(LIGHT_VAO);
+
     light_shader_program.use();
     light_shader_program.set_uniform("view", view);
     light_shader_program.set_uniform("projection", projection);
+    light_shader_program.set_uniform("lightColor", glm::vec3(1.0));
     for (const auto &position : light_cubes_positions) {
       light_shader_program.set_uniform(
           "model", glm::translate(glm::mat4(1.0f), position));
-      glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int),
-                     GL_UNSIGNED_INT, nullptr);
+      // glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int),
+      //             GL_UNSIGNED_INT, nullptr);
     }
 
     const auto gl_error = glGetError();
@@ -305,6 +341,8 @@ int main() {
   glDeleteVertexArrays(1, &LIGHT_VAO);
   glDeleteBuffers(1, &LIGHT_VBO);
   glDeleteBuffers(1, &LIGHT_EBO);
+
+  container_diffuse_map.deinit();
   shader_program.deinit();
   light_shader_program.deinit();
   glfwTerminate();
@@ -330,18 +368,24 @@ void processInput(GLFWwindow *window) {
   const auto cam_speed = DELTA * speed;
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-    CAMERA_POSITION += CAMERA_FRONT * glm::vec3(cam_speed);
+    auto pos = p_camera.get_position();
+    pos += p_camera.forward() * glm::vec3(cam_speed);
+    p_camera.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-    CAMERA_POSITION -= CAMERA_FRONT * glm::vec3(cam_speed);
+    auto pos = p_camera.get_position();
+    pos -= p_camera.forward() * glm::vec3(cam_speed);
+    p_camera.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-    CAMERA_POSITION -=
-        glm::vec3(cam_speed) * glm::normalize(glm::cross(CAMERA_FRONT, UP));
+    auto pos = p_camera.get_position();
+    pos -= p_camera.right() * glm::vec3(cam_speed);
+    p_camera.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-    CAMERA_POSITION +=
-        glm::vec3(cam_speed) * glm::normalize(glm::cross(CAMERA_FRONT, UP));
+    auto pos = p_camera.get_position();
+    pos += p_camera.right() * glm::vec3(cam_speed);
+    p_camera.set_position(pos);
   }
 }
 
@@ -361,11 +405,11 @@ void mouse_callback(GLFWwindow *window, double x, double y) {
   const auto sensitivity = 0.01;
   x_offset *= sensitivity;
   y_offset *= -sensitivity;
-
-  CAMERA_YAW += x_offset;
-  CAMERA_PITCH = std::clamp(CAMERA_PITCH + y_offset, -89.9, 89.9);
+  p_camera.set_yaw(p_camera.get_yaw() + static_cast<float>(x_offset));
+  p_camera.set_pitch(std::clamp(
+      p_camera.get_pitch() + static_cast<float>(y_offset), -89.9f, 89.9f));
 }
 
 void scroll_callback(GLFWwindow *window, double x, double y) {
-  FOV = std::clamp(FOV - y, 1.0, 45.0);
+  p_camera.set_fov(std::clamp(p_camera.get_fov() - y, 1.0, 45.0));
 }

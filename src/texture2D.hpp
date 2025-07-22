@@ -1,66 +1,72 @@
 #pragma once
 
-#include <iostream>
+#include "glad/glad.h"
+#include <stdexcept>
 #ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #endif
-#include "glad/glad.h"
 #include "stb_image.h"
+
+enum WrapMode : GLenum { Repeat = GL_REPEAT, ClampToEdge = GL_CLAMP_TO_EDGE };
+enum FilterMode : GLenum { Linear = GL_LINEAR, Nearest = GL_NEAREST };
+enum Format : GLenum { RGB = GL_RGB, RGBA = GL_RGBA };
+
+struct Texture2DBuilder {
+  WrapMode wrap_s = WrapMode::Repeat;
+  WrapMode wrap_t = WrapMode::Repeat;
+  FilterMode min_filter = FilterMode::Linear;
+  FilterMode mag_filter = FilterMode::Linear;
+  Format format = Format::RGBA;
+};
 
 class Texture2D {
 public:
-  enum class WrapMode : GLenum {
-    Repeat = GL_REPEAT,
-    ClampToEdge = GL_CLAMP_TO_EDGE
-  };
-  enum class FilterMode : GLenum { Linear = GL_LINEAR, Nearest = GL_NEAREST };
-  enum class Format : GLenum { RGB = GL_RGB, RGBA = GL_RGBA };
+  Texture2D(const Texture2D &) = delete;
+  Texture2D &operator=(const Texture2D &) = delete;
 
-  Texture2D(const char *file_path, WrapMode wrap_s = WrapMode::Repeat,
-            WrapMode wrap_t = WrapMode::Repeat,
-            FilterMode min_filter = FilterMode::Linear,
-            FilterMode mag_filter = FilterMode::Linear,
-            Format format = Format::RGB)
-      : wrap_s_(wrap_s), wrap_t_(wrap_t), min_filter_(min_filter),
-        mag_filter_(mag_filter), format_(format) {
-    this->data =
+  Texture2D(Texture2D &&other) noexcept
+      : id(other.id), width(other.width), height(other.height),
+        nrChannels(other.nrChannels) {}
+
+  explicit Texture2D(const char *file_path,
+                     const Texture2DBuilder &builder = {}) {
+    unsigned char *data =
         stbi_load(file_path, &this->width, &this->height, &this->nrChannels, 0);
 
-    if (this->data == nullptr) {
-      std::cerr << "Erreur: Impossible de charger la texture avec stbi: "
-                << file_path << "\n";
+    if (!data) {
+      throw std::runtime_error(
+          "Erreur: impossible de charger la texture avec stbi: " +
+          std::string(file_path));
     }
 
     glGenTextures(1, &this->id);
-  }
 
-  unsigned int get_id() const { return this->id; }
-
-  void bind() {
     glBindTexture(GL_TEXTURE_2D, this->id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
-                    static_cast<GLenum>(wrap_s_));
+                    static_cast<GLenum>(builder.wrap_s));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
-                    static_cast<GLenum>(wrap_t_));
+                    static_cast<GLenum>(builder.wrap_t));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                    static_cast<GLenum>(min_filter_));
+                    static_cast<GLenum>(builder.min_filter));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
-                    static_cast<GLenum>(mag_filter_));
-    glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLenum>(format_), width, height,
-                 0, static_cast<GLenum>(format_), GL_UNSIGNED_BYTE, data);
+                    static_cast<GLenum>(builder.mag_filter));
+    glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLenum>(builder.format), width,
+                 height, 0, static_cast<GLenum>(builder.format),
+                 GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);
     stbi_image_free(data);
-    data = nullptr;
-  }
+  };
+
+  ~Texture2D() { this->deinit(); }
+  void deinit() { glDeleteTextures(1, &this->id); }
+
+  void bind() const { glBindTexture(GL_TEXTURE_2D, this->id); }
+
+  unsigned int get_id() const { return this->id; }
 
 private:
   unsigned int id;
   int width;
   int height;
   int nrChannels;
-  unsigned char *data = nullptr;
-
-  WrapMode wrap_s_, wrap_t_;
-  FilterMode min_filter_, mag_filter_;
-  Format format_;
 };
