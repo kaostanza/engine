@@ -8,9 +8,16 @@ struct LightInfo {
   glm::vec3 diffuse;
 };
 
+struct AttenuationInfo {
+  float constant;
+  float linear;
+  float quadratic;
+};
+
 struct PointLight {
   glm::vec3 position;
 
+  AttenuationInfo attenuation_info;
   LightInfo info;
 };
 

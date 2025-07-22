@@ -163,6 +163,14 @@ Shader::set_uniform_struct<PointLight>(std::string_view uniform_struct_name,
   std::string uniform_struct_name_s(uniform_struct_name);
   this->set_uniform((uniform_struct_name_s + ".position").c_str(),
                     value.position);
+
+  this->set_uniform((uniform_struct_name_s + ".linear").c_str(),
+                    value.attenuation_info.linear);
+  this->set_uniform((uniform_struct_name_s + ".quadratic").c_str(),
+                    value.attenuation_info.quadratic);
+  this->set_uniform((uniform_struct_name_s + ".constant").c_str(),
+                    value.attenuation_info.constant);
+
   this->set_uniform_struct(uniform_struct_name_s, value.info);
 }
 
