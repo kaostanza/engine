@@ -17,8 +17,8 @@ struct AttenuationInfo {
 struct PointLight {
   glm::vec3 position;
 
-  AttenuationInfo attenuation_info;
   LightInfo info;
+  AttenuationInfo attenuation_info;
 };
 
 struct DirectionalLight {
@@ -33,4 +33,5 @@ struct SpotLight {
   float outer_cut_off;
 
   LightInfo info;
+  AttenuationInfo attenuation_info;
 };

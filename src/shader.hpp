@@ -157,6 +157,23 @@ Shader::set_uniform_struct<LightInfo>(std::string_view uniform_struct_name,
 }
 
 template <>
+inline void Shader::set_uniform_struct<AttenuationInfo>(
+    std::string_view uniform_struct_name, const AttenuationInfo &value) const {
+  char buffer[64];
+  int name_len = uniform_struct_name.length();
+  const char *name_ptr = uniform_struct_name.data();
+
+  snprintf(buffer, sizeof(buffer), "%.*s.constant", name_len, name_ptr);
+  this->set_uniform(buffer, value.constant);
+
+  snprintf(buffer, sizeof(buffer), "%.*s.linear", name_len, name_ptr);
+  this->set_uniform(buffer, value.linear);
+
+  snprintf(buffer, sizeof(buffer), "%.*s.quadratic", name_len, name_ptr);
+  this->set_uniform(buffer, value.quadratic);
+}
+
+template <>
 inline void
 Shader::set_uniform_struct<PointLight>(std::string_view uniform_struct_name,
                                        const PointLight &value) const {
@@ -172,6 +189,7 @@ Shader::set_uniform_struct<PointLight>(std::string_view uniform_struct_name,
                     value.attenuation_info.constant);
 
   this->set_uniform_struct(uniform_struct_name_s, value.info);
+  this->set_uniform_struct(uniform_struct_name_s, value.attenuation_info);
 }
 
 template <>
@@ -188,6 +206,7 @@ Shader::set_uniform_struct<SpotLight>(std::string_view uniform_struct_name,
   this->set_uniform((uniform_struct_name_s + ".outer_cut_off").c_str(),
                     value.outer_cut_off);
   this->set_uniform_struct(uniform_struct_name_s, value.info);
+  this->set_uniform_struct(uniform_struct_name_s, value.attenuation_info);
 }
 
 template <>

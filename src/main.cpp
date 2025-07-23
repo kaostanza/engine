@@ -112,7 +112,12 @@ const unsigned int indices[] = {
 const glm::vec3 normal_cubes_positions[] = {
     glm::vec3(0.0, 0.0, 0.0), glm::vec3(2.0),      glm::vec3(-2.0),
     glm::vec3(-2, 2, 0),      glm::vec3(2, -2, 0), glm::vec3(10, 0, 10)};
-glm::vec3 light_cubes_positions[] = {glm::vec3(1.2, 1.0, 2.0)};
+glm::vec3 light_cubes_positions[] = {
+    glm::vec3(0.7f, 0.2f, 2.0f), glm::vec3(2.3f, -3.3f, -4.0f),
+    glm::vec3(-4.0f, 2.0f, -12.0f), glm::vec3(0.0f, 0.0f, -3.0f)};
+glm::vec3 base_light_cubes_positions[] = {
+    glm::vec3(0.7f, 0.2f, 2.0f), glm::vec3(2.3f, -3.3f, -4.0f),
+    glm::vec3(-4.0f, 2.0f, -12.0f), glm::vec3(0.0f, 0.0f, -3.0f)};
 
 void processInput(GLFWwindow *window);
 void resize_window_callback(GLFWwindow *window, int x, int y);
@@ -226,9 +231,17 @@ int main() {
   auto projection = glm::perspective(glm::radians(static_cast<float>(FOV)),
                                      WIDTH / HEIGHT, 0.1f, 100.0f);
 
-  auto light_diffuse = glm::vec3(1.0);
-  auto light_specular = glm::vec3(0.5);
-  auto light_ambiant = glm::vec3(0.2);
+  auto spot_light_diffuse = glm::vec3(0.5);
+  auto spot_light_specular = glm::vec3(0.5);
+  auto spot_light_ambient = glm::vec3(0.01);
+
+  auto directionnal_light_diffuse = glm::vec3(0.5);
+  auto directionnal_light_specular = glm::vec3(1.0);
+  auto directionnal_light_ambient = glm::vec3(0.2);
+
+  auto point_light_diffuse = glm::vec3(1.0);
+  auto point_light_specular = glm::vec3(0.5);
+  auto point_light_ambient = glm::vec3(0.01);
 
   shader_program.use();
   shader_program.set_uniform("model", model);
@@ -266,38 +279,84 @@ int main() {
     container_specular_map.bind();
 
     // make light cube move
-    const float radius = 15.0;
-    const float x = sin(TIME) * radius;
-    const float z = cos(TIME) * radius;
-    light_cubes_positions[0].x = x;
-    light_cubes_positions[0].z = z;
+    const float radius = 105.0;
+
+    for (int i = 0;
+         i < sizeof(light_cubes_positions) / sizeof(light_cubes_positions[0]);
+         i++) {
+      auto &base_pos = base_light_cubes_positions[i];
+      auto &pos = light_cubes_positions[i];
+      const float x = base_pos.x + sin(TIME + i) * radius;
+      const float z = base_pos.z + cos(TIME + i) * radius;
+
+      pos.x = x;
+      pos.z = z;
+    }
+
+    view = p_camera.looking_at();
+    projection =
+        glm::perspective(glm::radians(static_cast<float>(p_camera.get_fov())),
+                         WIDTH / HEIGHT, 0.1f, 100.0f);
 
     glBindVertexArray(VAO);
     shader_program.use();
-    view = p_camera.looking_at();
     shader_program.set_uniform("view", view);
-    shader_program.set_uniform("viewPos", p_camera.get_position());
-
-    // shader_program.set_uniform("light.direction", glm::vec3(0,-1,0));
+    shader_program.set_uniform("view_pos", p_camera.get_position());
     shader_program.set_uniform_struct(
-        "light", SpotLight{.position = p_camera.get_position(),
-                           .direction = p_camera.forward(),
-                           .inner_cut_off = (float)glm::cos(glm::radians(12.5)),
-                           .outer_cut_off = (float)glm::cos(glm::radians(17.5)),
-                           .info = LightInfo{
-                               .ambient = light_ambiant,
-                               .specular = light_specular,
-                               .diffuse = light_diffuse,
-                           }});
+        "spot_light",
+        SpotLight{.position = p_camera.get_position(),
+                  .direction = p_camera.forward(),
+                  .inner_cut_off = (float)glm::cos(glm::radians(12.5)),
+                  .outer_cut_off = (float)glm::cos(glm::radians(17.5)),
+                  .info =
+                      LightInfo{
+                          .ambient = spot_light_ambient,
+                          .specular = spot_light_specular,
+                          .diffuse = spot_light_diffuse,
+                      },
+                  .attenuation_info = AttenuationInfo{
+                      .constant = 1.0f,
+                      .linear = 0.09f,
+                      .quadratic = 0.032,
+                  }});
+
+    shader_program.set_uniform_struct(
+        "directionnal_light",
+        DirectionalLight{.direction = glm::vec3(0, -1, 0),
+                         .info = LightInfo{
+                             .ambient = directionnal_light_ambient,
+                             .specular = directionnal_light_specular,
+                             .diffuse = directionnal_light_diffuse,
+                         }});
+
+    int i = 0;
+    for (const auto &point_light_position : light_cubes_positions) {
+      std::string struct_name = "point_lights[" + std::to_string(i) + "]";
+      shader_program.set_uniform_struct(
+          struct_name, PointLight{.position = point_light_position,
+                                  .info =
+                                      LightInfo{
+                                          .ambient = point_light_ambient,
+                                          .specular = point_light_specular,
+                                          .diffuse = point_light_diffuse,
+                                      },
+                                  .attenuation_info =
+                                      AttenuationInfo{
+                                          .constant = 1.0f,
+                                          .linear = 0.09f,
+                                          .quadratic = 0.032,
+                                      }
+
+                       });
+
+      i++;
+    }
 
     shader_program.set_uniform("material.diffuse", 0);
     shader_program.set_uniform("material.specular", 1);
     shader_program.set_uniform("material.emission", 2);
     shader_program.set_uniform("material.shininess", 32.0f);
 
-    projection =
-        glm::perspective(glm::radians(static_cast<float>(p_camera.get_fov())),
-                         WIDTH / HEIGHT, 0.1f, 100.0f);
     shader_program.set_uniform("projection", projection);
     for (const auto &position : normal_cubes_positions) {
       float rotation_speed = 0.5f + abs(position.x + position.y) * 0.3f;
@@ -321,8 +380,8 @@ int main() {
     for (const auto &position : light_cubes_positions) {
       light_shader_program.set_uniform(
           "model", glm::translate(glm::mat4(1.0f), position));
-      // glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int),
-      //             GL_UNSIGNED_INT, nullptr);
+      glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int),
+                     GL_UNSIGNED_INT, nullptr);
     }
 
     const auto gl_error = glGetError();
