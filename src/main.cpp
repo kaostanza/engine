@@ -19,23 +19,23 @@
 #include "texture2D.hpp"
 
 // SCREEN + FOV
-float WIDTH = 800.0;
-float HEIGHT = 600.0;
+int WIDTH = 800;
+int HEIGHT = 600;
 double FOV = 45.0;
 
 // FLY CAMERA
 FlyCamera p_camera(glm::vec3(0.0, 0.0, 3.0), FOV);
-float X_POS = WIDTH / 2;
-float Y_POS = HEIGHT / 2;
+float X_POS = static_cast<float>(WIDTH) / 2;
+float Y_POS = static_cast<float>(HEIGHT) / 2;
 // Time related stuff
-float TIME = 0;
-float LAST_TIME = 0;
-float DELTA = 0;
+double TIME = 0;
+double LAST_TIME = 0;
+double DELTA = 0;
 
 // Basic k_linear + quadratic + constant for pointlight attenuation
-constexpr const float k_constant = 1;
-constexpr const float k_linear = 0.09;
-constexpr const float k_quadratic = 0.032;
+constexpr float k_constant = 1;
+constexpr float k_linear = 0.09f;
+constexpr float k_quadratic = 0.032f;
 
 // NORMAL OBJECTS;
 const float normal_cube_vertices[]{
@@ -148,7 +148,8 @@ int main() {
   glfwSetCursorPosCallback(window, mouse_callback);
   glfwSetScrollCallback(window, scroll_callback);
 
-  if (gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0) {
+  if (gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)) ==
+      0) {
     std::cout << "Erreur: Impossible de load via glad\n";
     return 1;
   }
@@ -180,24 +181,29 @@ int main() {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), &indices[0],
                GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+                        static_cast<void *>(0));
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        (void *)(3 * sizeof(float)));
+                        reinterpret_cast<void *>(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        (void *)(6 * sizeof(float)));
+                        reinterpret_cast<void *>(6 * sizeof(float)));
   glEnableVertexAttribArray(2);
 
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
 
-  Texture2D container_diffuse_map("../assets/textures/container2.png",
-                                  Texture2DBuilder{.format = Format::RGBA});
+  Texture2DBuilder rgba;
+  rgba.format = Format::RGBA;
+
+  Texture2DBuilder rgb;
+  rgb.format = Format::RGB;
+
+  Texture2D container_diffuse_map("../assets/textures/container2.png", rgba);
   Texture2D container_specular_map("../assets/textures/container2_specular.png",
-                                   Texture2DBuilder{.format = Format::RGBA});
-  Texture2D container_emission_map("../assets/textures/matrix.jpg",
-                                   Texture2DBuilder{.format = Format::RGB});
+                                   rgba);
+  Texture2D container_emission_map("../assets/textures/matrix.jpg", rgb);
 
   unsigned int LIGHT_VAO;
   glGenVertexArrays(1, &LIGHT_VAO);
@@ -214,13 +220,14 @@ int main() {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, LIGHT_EBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), &indices[0],
                GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+                        static_cast<void *>(0));
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        (void *)(3 * sizeof(float)));
+                        reinterpret_cast<void *>(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        (void *)(6 * sizeof(float)));
+                        reinterpret_cast<void *>(6 * sizeof(float)));
   glEnableVertexAttribArray(2);
 
   glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -228,20 +235,21 @@ int main() {
 
   auto model = glm::mat4(1.0);
   auto view = p_camera.looking_at();
-  auto projection = glm::perspective(glm::radians(static_cast<float>(FOV)),
-                                     WIDTH / HEIGHT, 0.1f, 100.0f);
+  auto projection = glm::perspective(
+      glm::radians(static_cast<float>(FOV)),
+      static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
 
-  auto spot_light_diffuse = glm::vec3(0.5);
-  auto spot_light_specular = glm::vec3(0.5);
-  auto spot_light_ambient = glm::vec3(0.01);
+  auto spot_light_diffuse = glm::vec3(0.5f);
+  auto spot_light_specular = glm::vec3(0.5f);
+  auto spot_light_ambient = glm::vec3(0.01f);
 
-  auto directionnal_light_diffuse = glm::vec3(0.5);
-  auto directionnal_light_specular = glm::vec3(1.0);
-  auto directionnal_light_ambient = glm::vec3(0.2);
+  auto directionnal_light_diffuse = glm::vec3(0.5f);
+  auto directionnal_light_specular = glm::vec3(1.0f);
+  auto directionnal_light_ambient = glm::vec3(0.2f);
 
-  auto point_light_diffuse = glm::vec3(1.0);
-  auto point_light_specular = glm::vec3(0.5);
-  auto point_light_ambient = glm::vec3(0.01);
+  auto point_light_diffuse = glm::vec3(1.0f);
+  auto point_light_specular = glm::vec3(0.5f);
+  auto point_light_ambient = glm::vec3(0.01f);
 
   shader_program.use();
   shader_program.set_uniform("model", model);
@@ -281,22 +289,22 @@ int main() {
     // make light cube move
     const float radius = 105.0;
 
-    for (int i = 0;
+    for (unsigned int i = 0;
          i < sizeof(light_cubes_positions) / sizeof(light_cubes_positions[0]);
          i++) {
       auto &base_pos = base_light_cubes_positions[i];
       auto &pos = light_cubes_positions[i];
-      const float x = base_pos.x + sin(TIME + i) * radius;
-      const float z = base_pos.z + cos(TIME + i) * radius;
+      const double x = base_pos.x + sin(TIME + i) * radius;
+      const double z = base_pos.z + cos(TIME + i) * radius;
 
-      pos.x = x;
-      pos.z = z;
+      pos.x = static_cast<float>(x);
+      pos.z = static_cast<float>(z);
     }
 
     view = p_camera.looking_at();
-    projection =
-        glm::perspective(glm::radians(static_cast<float>(p_camera.get_fov())),
-                         WIDTH / HEIGHT, 0.1f, 100.0f);
+    projection = glm::perspective(
+        glm::radians(static_cast<float>(p_camera.get_fov())),
+        static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
 
     glBindVertexArray(VAO);
     shader_program.use();
@@ -304,50 +312,46 @@ int main() {
     shader_program.set_uniform("view_pos", p_camera.get_position());
     shader_program.set_uniform_struct(
         "spot_light",
-        SpotLight{.position = p_camera.get_position(),
-                  .direction = p_camera.forward(),
-                  .inner_cut_off = (float)glm::cos(glm::radians(12.5)),
-                  .outer_cut_off = (float)glm::cos(glm::radians(17.5)),
-                  .info =
-                      LightInfo{
-                          .ambient = spot_light_ambient,
-                          .specular = spot_light_specular,
-                          .diffuse = spot_light_diffuse,
-                      },
-                  .attenuation_info = AttenuationInfo{
-                      .constant = 1.0f,
-                      .linear = 0.09f,
-                      .quadratic = 0.032,
+        SpotLight{p_camera.get_position(), p_camera.forward(),
+                  static_cast<float>(glm::cos(glm::radians(12.5))),
+                  static_cast<float>(glm::cos(glm::radians(17.5))),
+                  LightInfo{
+                      spot_light_ambient,
+                      spot_light_specular,
+                      spot_light_diffuse,
+                  },
+                  AttenuationInfo{
+                      1.0f,
+                      0.09f,
+                      0.032f,
                   }});
 
     shader_program.set_uniform_struct(
-        "directionnal_light",
-        DirectionalLight{.direction = glm::vec3(0, -1, 0),
-                         .info = LightInfo{
-                             .ambient = directionnal_light_ambient,
-                             .specular = directionnal_light_specular,
-                             .diffuse = directionnal_light_diffuse,
-                         }});
+        "directionnal_light", DirectionalLight{glm::vec3(0, -1, 0), // direction
+                                               LightInfo{
+                                                   directionnal_light_ambient,
+                                                   directionnal_light_specular,
+                                                   directionnal_light_diffuse,
+                                               }});
 
     int i = 0;
     for (const auto &point_light_position : light_cubes_positions) {
       std::string struct_name = "point_lights[" + std::to_string(i) + "]";
-      shader_program.set_uniform_struct(
-          struct_name, PointLight{.position = point_light_position,
-                                  .info =
-                                      LightInfo{
-                                          .ambient = point_light_ambient,
-                                          .specular = point_light_specular,
-                                          .diffuse = point_light_diffuse,
-                                      },
-                                  .attenuation_info =
-                                      AttenuationInfo{
-                                          .constant = 1.0f,
-                                          .linear = 0.09f,
-                                          .quadratic = 0.032,
-                                      }
+      shader_program.set_uniform_struct(struct_name,
+                                        PointLight{point_light_position,
+                                                   LightInfo{
+                                                       point_light_ambient,
+                                                       point_light_specular,
+                                                       point_light_diffuse,
+                                                   },
 
-                       });
+                                                   AttenuationInfo{
+                                                       1.0f,
+                                                       0.09f,
+                                                       0.032f,
+                                                   }
+
+                                        });
 
       i++;
     }
@@ -363,10 +367,11 @@ int main() {
       glm::vec3 rotation_axis = glm::normalize(
           glm::vec3(sin(position.x), cos(position.y), sin(position.z)));
 
-      auto model = glm::rotate(glm::translate(glm::mat4(1.0), position),
-                               (float)TIME * rotation_speed, rotation_axis);
+      auto model_ =
+          glm::rotate(glm::translate(glm::mat4(1.0), position),
+                      static_cast<float>(TIME) * rotation_speed, rotation_axis);
 
-      shader_program.set_uniform("model", model);
+      shader_program.set_uniform("model", model_);
       glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int),
                      GL_UNSIGNED_INT, nullptr);
     }
@@ -428,38 +433,38 @@ void processInput(GLFWwindow *window) {
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
     auto pos = p_camera.get_position();
-    pos += p_camera.forward() * glm::vec3(cam_speed);
+    pos += p_camera.forward() * glm::vec3(static_cast<float>(cam_speed));
     p_camera.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
     auto pos = p_camera.get_position();
-    pos -= p_camera.forward() * glm::vec3(cam_speed);
+    pos -= p_camera.forward() * glm::vec3(static_cast<float>(cam_speed));
     p_camera.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
     auto pos = p_camera.get_position();
-    pos -= p_camera.right() * glm::vec3(cam_speed);
+    pos -= p_camera.right() * glm::vec3(static_cast<float>(cam_speed));
     p_camera.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
     auto pos = p_camera.get_position();
-    pos += p_camera.right() * glm::vec3(cam_speed);
+    pos += p_camera.right() * glm::vec3(static_cast<float>(cam_speed));
     p_camera.set_position(pos);
   }
 }
 
-void resize_window_callback(GLFWwindow *window, int width, int height) {
+void resize_window_callback(GLFWwindow *, int width, int height) {
   WIDTH = width;
   HEIGHT = height;
   glViewport(0, 0, width, height);
 }
 
-void mouse_callback(GLFWwindow *window, double x, double y) {
+void mouse_callback(GLFWwindow *, double x, double y) {
   auto x_offset = x - X_POS;
   auto y_offset = y - Y_POS;
 
-  X_POS = x;
-  Y_POS = y;
+  X_POS = static_cast<float>(x);
+  Y_POS = static_cast<float>(y);
 
   const auto sensitivity = 0.01;
   x_offset *= sensitivity;
@@ -469,6 +474,6 @@ void mouse_callback(GLFWwindow *window, double x, double y) {
       p_camera.get_pitch() + static_cast<float>(y_offset), -89.9f, 89.9f));
 }
 
-void scroll_callback(GLFWwindow *window, double x, double y) {
+void scroll_callback(GLFWwindow *, double, double y) {
   p_camera.set_fov(std::clamp(p_camera.get_fov() - y, 1.0, 45.0));
 }

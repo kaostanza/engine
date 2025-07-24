@@ -43,14 +43,14 @@ public:
 
     glBindTexture(GL_TEXTURE_2D, this->id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
-                    static_cast<GLenum>(builder.wrap_s));
+                    static_cast<GLint>(builder.wrap_s));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
-                    static_cast<GLenum>(builder.wrap_t));
+                    static_cast<GLint>(builder.wrap_t));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                    static_cast<GLenum>(builder.min_filter));
+                    static_cast<GLint>(builder.min_filter));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
-                    static_cast<GLenum>(builder.mag_filter));
-    glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLenum>(builder.format), width,
+                    static_cast<GLint>(builder.mag_filter));
+    glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(builder.format), width,
                  height, 0, static_cast<GLenum>(builder.format),
                  GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);

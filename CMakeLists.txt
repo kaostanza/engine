@@ -7,17 +7,20 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(glfw3 REQUIRED)
 
-add_library(glad STATIC )
+add_library(glad STATIC)
 target_sources(glad PRIVATE dependencies/glad/src/glad.c)
 set_target_properties(glad PROPERTIES LINKER_LANGUAGE C)
 target_include_directories(glad PUBLIC dependencies/glad/include)
 
 add_library(glm INTERFACE)
-target_include_directories(glm INTERFACE dependencies/glm)
+target_include_directories(glm SYSTEM INTERFACE dependencies/glm)
+
+add_library(stb_image INTERFACE)
+target_include_directories(stb_image SYSTEM INTERFACE dependencies/stb_loader)
 
 add_executable(${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PRIVATE src/main.cpp src/shader.cpp)
-add_compile_options(
+target_compile_options(${PROJECT_NAME} PRIVATE
 -Wall
 -Wextra
 -Wpedantic
@@ -35,7 +38,6 @@ add_compile_options(
 -Wlogical-op
 -fsanitize=address
 )
-add_link_options(-fsanitize=address)
+target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE fontconfig glfw glad glm)
-target_include_directories(${PROJECT_NAME} PRIVATE src  dependencies/stb_loader)
+target_link_libraries(${PROJECT_NAME} PRIVATE fontconfig glfw glad glm stb_image)

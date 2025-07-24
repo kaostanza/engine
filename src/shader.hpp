@@ -41,7 +41,7 @@ private:
   unsigned int id;
   std::vector<unsigned int> shader_ids;
 
-  template <typename ShaderType> int add_shader_impl() const;
+  template <typename ShaderType> unsigned int add_shader_impl() const;
   template <typename T>
   void set_uniform_impl(const int uniform_location, const T &value) const;
 };
@@ -56,37 +56,38 @@ template <typename ShaderType> void Shader::add_shader(const char *file_path) {
   std::streamsize size = file.tellg();
   file.seekg(0, std::ios::beg);
 
-  std::vector<char> buffer(size + 1, 0); // sentinel '\0'
+  std::vector<char> buffer(static_cast<size_t>(size) + 1, 0); // sentinel '\0'
   if (!file.read(buffer.data(), size)) {
     throw std::runtime_error("Erreur: lecture échouée pour " +
                              std::string(file_path));
   }
 
-  GLuint id = glCreateShader(add_shader_impl<ShaderType>());
+  GLuint shader_id = glCreateShader(add_shader_impl<ShaderType>());
   const char *src = buffer.data();
-  glShaderSource(id, 1, &src, nullptr);
-  glCompileShader(id);
+  glShaderSource(shader_id, 1, &src, nullptr);
+  glCompileShader(shader_id);
 
   GLint success;
-  glGetShaderiv(id, GL_COMPILE_STATUS, &success);
+  glGetShaderiv(shader_id, GL_COMPILE_STATUS, &success);
 
   if (!success) {
     char info_log[512];
-    glGetShaderInfoLog(id, 512, nullptr, info_log);
-    glDeleteShader(id);
+    glGetShaderInfoLog(shader_id, 512, nullptr, info_log);
+    glDeleteShader(shader_id);
     throw std::runtime_error("Erreur: Impossible de compiler le shader " +
                              std::string(file_path) + ": " + info_log);
   }
 
-  glAttachShader(this->id, id);
-  shader_ids.push_back(id);
+  glAttachShader(this->id, shader_id);
+  shader_ids.push_back(shader_id);
 }
 
-template <> inline int Shader::add_shader_impl<FragmentShader>() const {
+template <>
+inline unsigned int Shader::add_shader_impl<FragmentShader>() const {
   return GL_FRAGMENT_SHADER;
 }
 
-template <> inline int Shader::add_shader_impl<VertexShader>() const {
+template <> inline unsigned int Shader::add_shader_impl<VertexShader>() const {
   return GL_VERTEX_SHADER;
 }
 
@@ -123,7 +124,7 @@ inline void Shader::set_uniform_impl<float>(const int location,
 template <>
 inline void Shader::set_uniform_impl<double>(const int location,
                                              const double &value) const {
-  glUniform1f(location, value);
+  glUniform1f(location, static_cast<GLfloat>(value));
 }
 
 template <>
@@ -143,7 +144,7 @@ inline void
 Shader::set_uniform_struct<LightInfo>(std::string_view uniform_struct_name,
                                       const LightInfo &value) const {
   char buffer[64];
-  int name_len = uniform_struct_name.length();
+  int name_len = static_cast<int>(uniform_struct_name.length());
   const char *name_ptr = uniform_struct_name.data();
 
   snprintf(buffer, sizeof(buffer), "%.*s.ambient", name_len, name_ptr);
@@ -160,7 +161,7 @@ template <>
 inline void Shader::set_uniform_struct<AttenuationInfo>(
     std::string_view uniform_struct_name, const AttenuationInfo &value) const {
   char buffer[64];
-  int name_len = uniform_struct_name.length();
+  int name_len = static_cast<int>(uniform_struct_name.length());
   const char *name_ptr = uniform_struct_name.data();
 
   snprintf(buffer, sizeof(buffer), "%.*s.constant", name_len, name_ptr);
