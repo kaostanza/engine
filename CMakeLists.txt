@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20.0)
 project(Engine VERSION 1.0.0 LANGUAGES C CXX)
 
+include(FetchContent)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -18,8 +20,12 @@ target_include_directories(glm SYSTEM INTERFACE dependencies/glm)
 add_library(stb_image INTERFACE)
 target_include_directories(stb_image SYSTEM INTERFACE dependencies/stb_loader)
 
+FetchContent_Declare(assimp  GIT_REPOSITORY https://github.com/assimp/assimp.git GIT_TAG master) 
+set(ASSIMP_BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(assimp)
+
 add_executable(${PROJECT_NAME})
-target_sources(${PROJECT_NAME} PRIVATE src/main.cpp src/shader.cpp)
+target_sources(${PROJECT_NAME} PRIVATE src/main.cpp src/shader.cpp src/mesh.cpp src/model.cpp src/stb_image_loader.cpp)
 target_compile_options(${PROJECT_NAME} PRIVATE
 -Wall
 -Wextra
@@ -39,5 +45,6 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 -fsanitize=address
 )
 target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
+target_link_libraries(${PROJECT_NAME} PRIVATE fontconfig glfw glad glm stb_image assimp)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE fontconfig glfw glad glm stb_image)
+

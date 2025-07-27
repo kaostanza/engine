@@ -15,6 +15,7 @@
 #include <ostream>
 
 #include "camera.hpp"
+#include "model.hpp"
 #include "shader.hpp"
 #include "texture2D.hpp"
 
@@ -130,7 +131,7 @@ int main() {
     return 1;
   }
   if (glfwInit() == 0) {
-    std::cout << "Erreur: Impossible d'init glfw\n";
+    std::cerr << "Erreur: Impossible d'init glfw\n";
     return 1;
   }
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -140,7 +141,7 @@ int main() {
       glfwCreateWindow(WIDTH, HEIGHT, "LearnOpenGL", nullptr, nullptr);
 
   if (window == nullptr) {
-    std::cout << "Erreur: Impossible de créer une Window avec OpenGL\n";
+    std::cerr << "Erreur: Impossible de créer une Window avec OpenGL\n";
     return 1;
   }
   glfwMakeContextCurrent(window);
@@ -150,7 +151,7 @@ int main() {
 
   if (gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)) ==
       0) {
-    std::cout << "Erreur: Impossible de load via glad\n";
+    std::cerr << "Erreur: Impossible de load via glad\n";
     return 1;
   }
 
@@ -194,16 +195,10 @@ int main() {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
 
-  Texture2DBuilder rgba;
-  rgba.format = Format::RGBA;
-
-  Texture2DBuilder rgb;
-  rgb.format = Format::RGB;
-
-  Texture2D container_diffuse_map("../assets/textures/container2.png", rgba);
-  Texture2D container_specular_map("../assets/textures/container2_specular.png",
-                                   rgba);
-  Texture2D container_emission_map("../assets/textures/matrix.jpg", rgb);
+  Texture2D container_diffuse_map("../assets/textures/container2.png");
+  Texture2D container_specular_map(
+      "../assets/textures/container2_specular.png");
+  Texture2D container_emission_map("../assets/textures/matrix.jpg");
 
   unsigned int LIGHT_VAO;
   glGenVertexArrays(1, &LIGHT_VAO);
@@ -243,11 +238,11 @@ int main() {
   auto spot_light_specular = glm::vec3(0.5f);
   auto spot_light_ambient = glm::vec3(0.01f);
 
-  auto directionnal_light_diffuse = glm::vec3(0.5f);
-  auto directionnal_light_specular = glm::vec3(1.0f);
-  auto directionnal_light_ambient = glm::vec3(0.2f);
+  auto directionnal_light_diffuse = glm::vec3(0.0f);
+  auto directionnal_light_specular = glm::vec3(0.0f);
+  auto directionnal_light_ambient = glm::vec3(0.0f);
 
-  auto point_light_diffuse = glm::vec3(1.0f);
+  auto point_light_diffuse = glm::vec3(0.5f);
   auto point_light_specular = glm::vec3(0.5f);
   auto point_light_ambient = glm::vec3(0.01f);
 
@@ -261,6 +256,14 @@ int main() {
   light_shader_program.set_uniform("view", view);
   light_shader_program.set_uniform("projection", projection);
 
+  Shader model_shader_program;
+  model_shader_program.add_shader<VertexShader>(
+      "../src/shaders/model_vertex.glsl");
+  model_shader_program.add_shader<FragmentShader>(
+      "../src/shaders/model_fragment.glsl");
+  model_shader_program.link();
+  Model backpack("../assets/models/sponza/scene.gltf");
+
   // Wireframe mode
   // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   // Default mode
@@ -273,12 +276,75 @@ int main() {
     LAST_TIME = TIME;
     TIME = glfwGetTime();
     DELTA = TIME - LAST_TIME;
-    // std::cout << "FPS: " << 1 / DELTA << std::endl;
+    std::cout << "FPS: " << 1 / DELTA << std::endl;
 
     processInput(window);
 
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    view = p_camera.looking_at();
+    projection = glm::perspective(
+        glm::radians(static_cast<float>(p_camera.get_fov())),
+        static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
+
+    // Backpack
+    model_shader_program.use();
+    model_shader_program.set_uniform("view", view);
+    model_shader_program.set_uniform("projection", projection);
+    model_shader_program.set_uniform(
+        "model", glm::translate(glm::scale(glm::mat4(1.0), glm::vec3(0.01f)),
+                                glm::vec3(0.0, 4.0, 0.0)));
+
+    model_shader_program.set_uniform("material.shininess", 32.0f);
+    model_shader_program.set_uniform("material.emission", 2);
+    model_shader_program.set_uniform("view_pos", p_camera.get_position());
+    model_shader_program.set_uniform_struct(
+        "spot_light",
+        SpotLight{p_camera.get_position(), p_camera.forward(),
+                  static_cast<float>(glm::cos(glm::radians(12.5))),
+                  static_cast<float>(glm::cos(glm::radians(17.5))),
+                  LightInfo{
+                      spot_light_ambient,
+                      spot_light_specular,
+                      spot_light_diffuse,
+                  },
+                  AttenuationInfo{
+                      1.0f,
+                      0.09f,
+                      0.032f,
+                  }});
+
+    model_shader_program.set_uniform_struct(
+        "directionnal_light", DirectionalLight{glm::vec3(0, -1, 0), // direction
+                                               LightInfo{
+                                                   directionnal_light_ambient,
+                                                   directionnal_light_specular,
+                                                   directionnal_light_diffuse,
+                                               }});
+
+    unsigned int i = 0;
+    for (const auto &point_light_position : light_cubes_positions) {
+      std::string struct_name = "point_lights[" + std::to_string(i) + "]";
+      model_shader_program.set_uniform_struct(
+          struct_name, PointLight{point_light_position,
+                                  LightInfo{
+                                      point_light_ambient,
+                                      point_light_specular,
+                                      point_light_diffuse,
+                                  },
+
+                                  AttenuationInfo{
+                                      1.0f,
+                                      0.09f,
+                                      0.032f,
+                                  }
+
+                       });
+
+      i++;
+    }
+    backpack.draw(model_shader_program);
 
     glActiveTexture(GL_TEXTURE0);
     container_diffuse_map.bind();
@@ -287,9 +353,9 @@ int main() {
     container_specular_map.bind();
 
     // make light cube move
-    const float radius = 105.0;
+    const float radius = 15.0;
 
-    for (unsigned int i = 0;
+    for (i = 0;
          i < sizeof(light_cubes_positions) / sizeof(light_cubes_positions[0]);
          i++) {
       auto &base_pos = base_light_cubes_positions[i];
@@ -301,11 +367,7 @@ int main() {
       pos.z = static_cast<float>(z);
     }
 
-    view = p_camera.looking_at();
-    projection = glm::perspective(
-        glm::radians(static_cast<float>(p_camera.get_fov())),
-        static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
-
+    // normal cubes
     glBindVertexArray(VAO);
     shader_program.use();
     shader_program.set_uniform("view", view);
@@ -334,7 +396,7 @@ int main() {
                                                    directionnal_light_diffuse,
                                                }});
 
-    int i = 0;
+    i = 0;
     for (const auto &point_light_position : light_cubes_positions) {
       std::string struct_name = "point_lights[" + std::to_string(i) + "]";
       shader_program.set_uniform_struct(struct_name,
@@ -407,8 +469,11 @@ int main() {
   glDeleteBuffers(1, &LIGHT_EBO);
 
   container_diffuse_map.deinit();
+  container_emission_map.deinit();
+  container_specular_map.deinit();
   shader_program.deinit();
   light_shader_program.deinit();
+
   glfwTerminate();
   FcFini();
   std::cout << "Fin du programme\n";
