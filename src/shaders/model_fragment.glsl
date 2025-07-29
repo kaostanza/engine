@@ -5,7 +5,6 @@ in vec3 normal;
 in vec3 pos;
 in vec2 tex_coord;
 
-
 struct DirectionalLight {
   vec3 direction; 
   
@@ -49,37 +48,52 @@ struct Material {
 };
 
 #define MAX_POINT_LIGHTS 4
+#define MAX_SPOT_LIGHTS 4
+#define MAX_DIRECTIONNAL_LIGHTS 4
 
-uniform DirectionalLight directionnal_light;
-uniform SpotLight spot_light;
+uniform DirectionalLight directionnal_light[MAX_DIRECTIONNAL_LIGHTS];
+uniform SpotLight spot_light[MAX_SPOT_LIGHTS];
 uniform PointLight point_lights[MAX_POINT_LIGHTS];
 
 uniform Material material; 
-uniform vec3 view_pos;
+uniform vec3 camera_pos;
 
-vec3 process_spot_light(SpotLight light, vec3 position, vec3 view_position, vec3 normal);
-vec3 process_directionnal_light(DirectionalLight light, vec3 position, vec3 view_position, vec3 normal);
-vec3 process_point_light(PointLight light, vec3 position, vec3 view_position, vec3 normal);
+uniform uint point_lights_count;
+uniform uint spot_lights_count;
+uniform uint directionnal_lights_count; 
+
+vec3 process_spot_light(SpotLight light, vec3 position, vec3 camera_position, vec3 normal);
+vec3 process_directionnal_light(DirectionalLight light, vec3 position, vec3 camera_position, vec3 normal);
+vec3 process_point_light(PointLight light, vec3 position, vec3 camera_position, vec3 normal);
 
 void main()
 {
   vec3 output = vec3(0.0);
-  vec3 emission = vec3(texture(material.emission, tex_coord));
 
-  output += process_directionnal_light(directionnal_light, pos, view_pos, normal);
-
-  for (int i=0; i<MAX_POINT_LIGHTS; i++) {
-    output += process_point_light(point_lights[i], pos, view_pos, normal);
+  // Lightning is deactivated
+  if (point_lights_count == 0u && spot_lights_count == 0u && directionnal_lights_count == 0u) {
+		  FragColor = texture(material.diffuse, tex_coord);
+		  return;
   }
 
-  output += process_spot_light(spot_light, pos, view_pos, normal);
+  vec3 emission = vec3(texture(material.emission, tex_coord));
+
+  for (uint i = 0u; i<directionnal_lights_count; i++)
+		  output += process_directionnal_light(directionnal_light[i], pos, camera_pos, normal);
+
+  for (uint i=0u; i<point_lights_count; i++) 
+		  output += process_point_light(point_lights[i], pos, camera_pos, normal);
+  
+
+  for (uint i=0u; i<spot_lights_count; i++)
+		  output += process_spot_light(spot_light[i], pos, camera_pos, normal);
 
   FragColor = vec4(output + emission , 1.0f);
 }
 
-vec3 process_point_light(PointLight light, vec3 position, vec3 view_position, vec3 normal) {
+vec3 process_point_light(PointLight light, vec3 position, vec3 camera_position, vec3 normal) {
   vec3 light_dir = normalize(position - light.position);
-  vec3 view_dir  = normalize(position - view_position);
+  vec3 view_dir  = normalize(position - camera_position);
   vec3 reflect_dir = reflect(-light_dir, normal);
 
   // specular
@@ -100,9 +114,9 @@ vec3 process_point_light(PointLight light, vec3 position, vec3 view_position, ve
   return (ambient + diffuse + specular) * attenuation;
 }
 
-vec3 process_directionnal_light(DirectionalLight light, vec3 position, vec3 view_position, vec3 normal) {
+vec3 process_directionnal_light(DirectionalLight light, vec3 position, vec3 camera_position, vec3 normal) {
   vec3 light_dir = normalize(position - light.direction);
-  vec3 view_dir  = normalize(position - view_position);
+  vec3 view_dir  = normalize(position - camera_position);
   vec3 reflect_dir = reflect(-light_dir, normal);
 
   // specular
@@ -119,9 +133,9 @@ vec3 process_directionnal_light(DirectionalLight light, vec3 position, vec3 view
   return (ambient + diffuse + specular);
 }
 
-vec3 process_spot_light(SpotLight light, vec3 position, vec3 view_position, vec3 normal) {
+vec3 process_spot_light(SpotLight light, vec3 position, vec3 camera_position, vec3 normal) {
   vec3 light_dir = normalize(light.position - position);
-  vec3 view_dir  = normalize(position - view_position);
+  vec3 view_dir  = normalize(position - camera_position);
   vec3 reflect_dir = reflect(-light_dir, normal);
 
   // stuff

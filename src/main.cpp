@@ -15,6 +15,7 @@
 #include <ostream>
 
 #include "camera.hpp"
+#include "light.hpp"
 #include "model.hpp"
 #include "shader.hpp"
 #include "texture2D.hpp"
@@ -28,6 +29,14 @@ double FOV = 45.0;
 FlyCamera p_camera(glm::vec3(0.0, 0.0, 3.0), FOV);
 float X_POS = static_cast<float>(WIDTH) / 2;
 float Y_POS = static_cast<float>(HEIGHT) / 2;
+
+// MATRIX TRANSFORM
+const auto identity = glm::mat4(1.0);
+auto view = p_camera.looking_at();
+auto projection = glm::perspective(
+    glm::radians(static_cast<float>(p_camera.get_fov())),
+    static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
+
 // Time related stuff
 double TIME = 0;
 double LAST_TIME = 0;
@@ -38,89 +47,7 @@ constexpr float k_constant = 1;
 constexpr float k_linear = 0.09f;
 constexpr float k_quadratic = 0.032f;
 
-// NORMAL OBJECTS;
-const float normal_cube_vertices[]{
-    // bottom face // COLOR         // TEXTURE
-    -0.5, -0.5, -0.5, 1.0, 0.0, 0.0, 0.0, 0.0, // bottom left
-    0.5, -0.5, -0.5, 0.0, 1.0, 0.0, 1.0, 0.0,  // bottom right
-    -0.5, 0.5, -0.5, 0.0, 0.0, 1.0, 0.0, 1.0,  // top left
-    0.5, 0.5, -0.5, 1.0, 0.0, 0.0, 1.0, 1.0,   // top right
-    // top face
-    -0.5, -0.5, 0.5, 1.0, 0.0, 0.0, 0.0, 0.0, // bottom left
-    0.5, -0.5, 0.5, 0.0, 1.0, 0.0, 1.0, 0.0,  // bottom right
-    -0.5, 0.5, 0.5, 0.0, 0.0, 1.0, 0.0, 1.0,  // top left
-    0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 1.0,   // top right
-};
-
-float light_cube_vertices[] = {
-    // bottom face
-    -0.5, -0.5, -0.5, 1.0, 1.0, 1.0, 0.0, 0.0, // bottom left
-    0.5, -0.5, -0.5, 1.0, 1.0, 1.0, 1.0, 0.0,  // bottom right
-    -0.5, 0.5, -0.5, 1.0, 1.0, 1.0, 0.0, 1.0,  // top left
-    0.5, 0.5, -0.5, 1.0, 1.0, 1.0, 1.0, 1.0,   // top right
-    // top face
-    -0.5, -0.5, 0.5, 1.0, 1.0, 1.0, 0.0, 0.0, // bottom left
-    0.5, -0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 0.0,  // bottom right
-    -0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 0.0, 1.0,  // top left
-    0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0,   // top right
-};
-
-const unsigned int indices[] = {
-    // bottom face
-    0,
-    1,
-    3,
-    3,
-    2,
-    0,
-    // top face
-    4,
-    5,
-    7,
-    7,
-    6,
-    4,
-    // left face
-    0,
-    4,
-    2,
-    2,
-    6,
-    4,
-    // right face
-    1,
-    5,
-    3,
-    3,
-    7,
-    5,
-    // back face
-    6,
-    2,
-    3,
-    3,
-    7,
-    6,
-    // front face
-    4,
-    0,
-    1,
-    1,
-    5,
-    4,
-};
-
-const glm::vec3 normal_cubes_positions[] = {
-    glm::vec3(0.0, 0.0, 0.0), glm::vec3(2.0),      glm::vec3(-2.0),
-    glm::vec3(-2, 2, 0),      glm::vec3(2, -2, 0), glm::vec3(10, 0, 10)};
-glm::vec3 light_cubes_positions[] = {
-    glm::vec3(0.7f, 0.2f, 2.0f), glm::vec3(2.3f, -3.3f, -4.0f),
-    glm::vec3(-4.0f, 2.0f, -12.0f), glm::vec3(0.0f, 0.0f, -3.0f)};
-glm::vec3 base_light_cubes_positions[] = {
-    glm::vec3(0.7f, 0.2f, 2.0f), glm::vec3(2.3f, -3.3f, -4.0f),
-    glm::vec3(-4.0f, 2.0f, -12.0f), glm::vec3(0.0f, 0.0f, -3.0f)};
-
-void processInput(GLFWwindow *window);
+void process_input(GLFWwindow *window);
 void resize_window_callback(GLFWwindow *window, int x, int y);
 void mouse_callback(GLFWwindow *window, double x, double y);
 void scroll_callback(GLFWwindow *window, double x, double y);
@@ -155,324 +82,131 @@ int main() {
     return 1;
   }
 
-  Shader shader_program;
-  shader_program.add_shader<VertexShader>("../src/shaders/vertex.glsl");
-  shader_program.add_shader<FragmentShader>("../src/shaders/fragment.glsl");
+  // To run destructor before we reach glfwTerminate() at the end of main
+  // (avoid seg fault)
+  {
 
-  shader_program.link();
+    std::vector<PointLight> point_lights{PointLight{glm::vec3(5.0f, 0.0f, 5.0f),
+                                                    LightInfo{
+                                                        glm::vec3(0.1f),
+                                                        glm::vec3(0.5f),
+                                                        glm::vec3(1.0f),
+                                                    },
 
-  Shader light_shader_program;
-  light_shader_program.add_shader<VertexShader>("../src/shaders/vertex.glsl");
-  light_shader_program.add_shader<FragmentShader>(
-      "../src/shaders/light_fragment.glsl");
-  light_shader_program.link();
+                                                    AttenuationInfo{
+                                                        k_constant,
+                                                        k_linear,
+                                                        k_quadratic,
+                                                    }
 
-  unsigned int VAO;
-  glGenVertexArrays(1, &VAO);
+    }};
+    std::vector<DirectionalLight> directionnal_lights;
+    std::vector<SpotLight> spot_lights;
 
-  unsigned int VBO;
-  glGenBuffers(1, &VBO);
-  unsigned int EBO;
-  glGenBuffers(1, &EBO);
+    Model backpack("../assets/models/backpack/backpack.obj");
 
-  glBindVertexArray(VAO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(normal_cube_vertices),
-               &normal_cube_vertices[0], GL_STATIC_DRAW);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), &indices[0],
-               GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        static_cast<void *>(0));
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        reinterpret_cast<void *>(3 * sizeof(float)));
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        reinterpret_cast<void *>(6 * sizeof(float)));
-  glEnableVertexAttribArray(2);
+    Shader model_shader_program;
+    model_shader_program.add_shader<VertexShader>(
+        "../src/shaders/model_vertex.glsl");
+    model_shader_program.add_shader<FragmentShader>(
+        "../src/shaders/model_fragment.glsl");
+    model_shader_program.link();
 
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+    // Wireframe mode
+    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    // Default mode
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glEnable(GL_DEPTH_TEST);
 
-  Texture2D container_diffuse_map("../assets/textures/container2.png");
-  Texture2D container_specular_map(
-      "../assets/textures/container2_specular.png");
-  Texture2D container_emission_map("../assets/textures/matrix.jpg");
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    // VSYNC (1 = ON, 0 = OFF)
+    glfwSwapInterval(1);
 
-  unsigned int LIGHT_VAO;
-  glGenVertexArrays(1, &LIGHT_VAO);
+    unsigned int frame_c = 0;
+    double smoothed_fps = 165.0f;
+    const auto alpha = 0.1f;
+    const auto radius = 10.0;
 
-  unsigned int LIGHT_VBO;
-  glGenBuffers(1, &LIGHT_VBO);
-  unsigned int LIGHT_EBO;
-  glGenBuffers(1, &LIGHT_EBO);
+    while (glfwWindowShouldClose(window) == 0) {
+      LAST_TIME = TIME;
+      TIME = glfwGetTime();
+      DELTA = TIME - LAST_TIME;
 
-  glBindVertexArray(LIGHT_VAO);
-  glBindBuffer(GL_ARRAY_BUFFER, LIGHT_VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(light_cube_vertices),
-               &light_cube_vertices[0], GL_STATIC_DRAW);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, LIGHT_EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), &indices[0],
-               GL_STATIC_DRAW);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        static_cast<void *>(0));
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        reinterpret_cast<void *>(3 * sizeof(float)));
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-                        reinterpret_cast<void *>(6 * sizeof(float)));
-  glEnableVertexAttribArray(2);
+      const auto fps = 1 / DELTA;
+      smoothed_fps = alpha * fps + (1.0f - alpha) * smoothed_fps;
+      if (frame_c++ % 30 == 0)
+        std::cout << "FPS: " << smoothed_fps << std::endl;
 
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+      process_input(window);
 
-  auto model = glm::mat4(1.0);
-  auto view = p_camera.looking_at();
-  auto projection = glm::perspective(
-      glm::radians(static_cast<float>(FOV)),
-      static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
+      glClearColor(0, 0, 0, 1);
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  auto spot_light_diffuse = glm::vec3(0.5f);
-  auto spot_light_specular = glm::vec3(0.5f);
-  auto spot_light_ambient = glm::vec3(0.01f);
+      view = p_camera.looking_at();
 
-  auto directionnal_light_diffuse = glm::vec3(0.0f);
-  auto directionnal_light_specular = glm::vec3(0.0f);
-  auto directionnal_light_ambient = glm::vec3(0.0f);
+      // make point lights move in a circle
+      for (unsigned int i = 0; i < point_lights.size(); i++) {
+        point_lights[i].position.x = static_cast<float>(sin(TIME + i) * radius);
+        point_lights[i].position.z = static_cast<float>(cos(TIME + i) * radius);
+      }
 
-  auto point_light_diffuse = glm::vec3(0.5f);
-  auto point_light_specular = glm::vec3(0.5f);
-  auto point_light_ambient = glm::vec3(0.01f);
+      // Backpack
+      model_shader_program.use();
 
-  shader_program.use();
-  shader_program.set_uniform("model", model);
-  shader_program.set_uniform("view", view);
-  shader_program.set_uniform("projection", projection);
+      // Give the transform matrix
+      model_shader_program.set_uniform("view", view);
+      model_shader_program.set_uniform("projection", projection);
+      model_shader_program.set_uniform(
+          "model", glm::translate(glm::scale(identity, glm::vec3(1.0f)),
+                                  glm::vec3(0.0, 0.0, 0.0)));
 
-  light_shader_program.use();
-  light_shader_program.set_uniform("model", model);
-  light_shader_program.set_uniform("view", view);
-  light_shader_program.set_uniform("projection", projection);
+      model_shader_program.set_uniform("camera_pos", p_camera.get_position());
 
-  Shader model_shader_program;
-  model_shader_program.add_shader<VertexShader>(
-      "../src/shaders/model_vertex.glsl");
-  model_shader_program.add_shader<FragmentShader>(
-      "../src/shaders/model_fragment.glsl");
-  model_shader_program.link();
-  Model backpack("../assets/models/sponza/scene.gltf");
+      // Give light settings (disabled for now)
+      model_shader_program.set_uniform(
+          "point_lights_count", static_cast<unsigned int>(point_lights.size()));
+      model_shader_program.set_uniform(
+          "directionnal_lights_count",
+          static_cast<unsigned int>(directionnal_lights.size()));
+      model_shader_program.set_uniform(
+          "spot_lights_count", static_cast<unsigned int>(spot_lights.size()));
 
-  // Wireframe mode
-  // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  // Default mode
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+      unsigned int i = 0;
+      for (const auto &point_light : point_lights) {
+        auto str = "point_lights[" + std::to_string(i) + "]";
+        model_shader_program.set_uniform_struct(str.data(), point_light);
+        i++;
+      }
 
-  glEnable(GL_DEPTH_TEST);
-  glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+      i = 0;
+      for (const auto &directionnal_light : directionnal_lights) {
+        auto str = "directionnal_lights[" + std::to_string(i) + "]";
+        model_shader_program.set_uniform_struct(str.data(), directionnal_light);
+        i++;
+      }
 
-  while (glfwWindowShouldClose(window) == 0) {
-    LAST_TIME = TIME;
-    TIME = glfwGetTime();
-    DELTA = TIME - LAST_TIME;
-    std::cout << "FPS: " << 1 / DELTA << std::endl;
+      i = 0;
+      for (const auto &spot_light : spot_lights) {
+        auto str = "spot_lights[" + std::to_string(i) + "]";
+        model_shader_program.set_uniform_struct(str.data(), spot_light);
+        i++;
+      }
 
-    processInput(window);
+      // give the camera position for lightining calculation
+      model_shader_program.set_uniform("material.shininess", 32.0f);
+      model_shader_program.set_uniform("material.emission", 2);
+      backpack.draw(model_shader_program);
 
-    glClearColor(0, 0, 0, 1);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      const auto gl_error = glGetError();
+      if (gl_error != GL_NO_ERROR) {
+        std::cout << "Erreur: Impossible de render\n"
+                  << "-> " << gl_error << std::endl;
+      }
 
-    view = p_camera.looking_at();
-    projection = glm::perspective(
-        glm::radians(static_cast<float>(p_camera.get_fov())),
-        static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
-
-    // Backpack
-    model_shader_program.use();
-    model_shader_program.set_uniform("view", view);
-    model_shader_program.set_uniform("projection", projection);
-    model_shader_program.set_uniform(
-        "model", glm::translate(glm::scale(glm::mat4(1.0), glm::vec3(0.01f)),
-                                glm::vec3(0.0, 4.0, 0.0)));
-
-    model_shader_program.set_uniform("material.shininess", 32.0f);
-    model_shader_program.set_uniform("material.emission", 2);
-    model_shader_program.set_uniform("view_pos", p_camera.get_position());
-    model_shader_program.set_uniform_struct(
-        "spot_light",
-        SpotLight{p_camera.get_position(), p_camera.forward(),
-                  static_cast<float>(glm::cos(glm::radians(12.5))),
-                  static_cast<float>(glm::cos(glm::radians(17.5))),
-                  LightInfo{
-                      spot_light_ambient,
-                      spot_light_specular,
-                      spot_light_diffuse,
-                  },
-                  AttenuationInfo{
-                      1.0f,
-                      0.09f,
-                      0.032f,
-                  }});
-
-    model_shader_program.set_uniform_struct(
-        "directionnal_light", DirectionalLight{glm::vec3(0, -1, 0), // direction
-                                               LightInfo{
-                                                   directionnal_light_ambient,
-                                                   directionnal_light_specular,
-                                                   directionnal_light_diffuse,
-                                               }});
-
-    unsigned int i = 0;
-    for (const auto &point_light_position : light_cubes_positions) {
-      std::string struct_name = "point_lights[" + std::to_string(i) + "]";
-      model_shader_program.set_uniform_struct(
-          struct_name, PointLight{point_light_position,
-                                  LightInfo{
-                                      point_light_ambient,
-                                      point_light_specular,
-                                      point_light_diffuse,
-                                  },
-
-                                  AttenuationInfo{
-                                      1.0f,
-                                      0.09f,
-                                      0.032f,
-                                  }
-
-                       });
-
-      i++;
+      glfwSwapBuffers(window);
+      glfwPollEvents();
     }
-    backpack.draw(model_shader_program);
-
-    glActiveTexture(GL_TEXTURE0);
-    container_diffuse_map.bind();
-
-    glActiveTexture(GL_TEXTURE1);
-    container_specular_map.bind();
-
-    // make light cube move
-    const float radius = 15.0;
-
-    for (i = 0;
-         i < sizeof(light_cubes_positions) / sizeof(light_cubes_positions[0]);
-         i++) {
-      auto &base_pos = base_light_cubes_positions[i];
-      auto &pos = light_cubes_positions[i];
-      const double x = base_pos.x + sin(TIME + i) * radius;
-      const double z = base_pos.z + cos(TIME + i) * radius;
-
-      pos.x = static_cast<float>(x);
-      pos.z = static_cast<float>(z);
-    }
-
-    // normal cubes
-    glBindVertexArray(VAO);
-    shader_program.use();
-    shader_program.set_uniform("view", view);
-    shader_program.set_uniform("view_pos", p_camera.get_position());
-    shader_program.set_uniform_struct(
-        "spot_light",
-        SpotLight{p_camera.get_position(), p_camera.forward(),
-                  static_cast<float>(glm::cos(glm::radians(12.5))),
-                  static_cast<float>(glm::cos(glm::radians(17.5))),
-                  LightInfo{
-                      spot_light_ambient,
-                      spot_light_specular,
-                      spot_light_diffuse,
-                  },
-                  AttenuationInfo{
-                      1.0f,
-                      0.09f,
-                      0.032f,
-                  }});
-
-    shader_program.set_uniform_struct(
-        "directionnal_light", DirectionalLight{glm::vec3(0, -1, 0), // direction
-                                               LightInfo{
-                                                   directionnal_light_ambient,
-                                                   directionnal_light_specular,
-                                                   directionnal_light_diffuse,
-                                               }});
-
-    i = 0;
-    for (const auto &point_light_position : light_cubes_positions) {
-      std::string struct_name = "point_lights[" + std::to_string(i) + "]";
-      shader_program.set_uniform_struct(struct_name,
-                                        PointLight{point_light_position,
-                                                   LightInfo{
-                                                       point_light_ambient,
-                                                       point_light_specular,
-                                                       point_light_diffuse,
-                                                   },
-
-                                                   AttenuationInfo{
-                                                       1.0f,
-                                                       0.09f,
-                                                       0.032f,
-                                                   }
-
-                                        });
-
-      i++;
-    }
-
-    shader_program.set_uniform("material.diffuse", 0);
-    shader_program.set_uniform("material.specular", 1);
-    shader_program.set_uniform("material.emission", 2);
-    shader_program.set_uniform("material.shininess", 32.0f);
-
-    shader_program.set_uniform("projection", projection);
-    for (const auto &position : normal_cubes_positions) {
-      float rotation_speed = 0.5f + abs(position.x + position.y) * 0.3f;
-      glm::vec3 rotation_axis = glm::normalize(
-          glm::vec3(sin(position.x), cos(position.y), sin(position.z)));
-
-      auto model_ =
-          glm::rotate(glm::translate(glm::mat4(1.0), position),
-                      static_cast<float>(TIME) * rotation_speed, rotation_axis);
-
-      shader_program.set_uniform("model", model_);
-      glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int),
-                     GL_UNSIGNED_INT, nullptr);
-    }
-
-    glBindVertexArray(LIGHT_VAO);
-
-    light_shader_program.use();
-    light_shader_program.set_uniform("view", view);
-    light_shader_program.set_uniform("projection", projection);
-    light_shader_program.set_uniform("lightColor", glm::vec3(1.0));
-    for (const auto &position : light_cubes_positions) {
-      light_shader_program.set_uniform(
-          "model", glm::translate(glm::mat4(1.0f), position));
-      glDrawElements(GL_TRIANGLES, sizeof(indices) / sizeof(unsigned int),
-                     GL_UNSIGNED_INT, nullptr);
-    }
-
-    const auto gl_error = glGetError();
-    if (gl_error != GL_NO_ERROR) {
-      std::cout << "Erreur: Impossible de render\n"
-                << "-> " << gl_error << std::endl;
-    }
-
-    glfwSwapBuffers(window);
-    glfwPollEvents();
   }
-
-  glDeleteVertexArrays(1, &VAO);
-  glDeleteBuffers(1, &VBO);
-  glDeleteBuffers(1, &EBO);
-  glDeleteVertexArrays(1, &LIGHT_VAO);
-  glDeleteBuffers(1, &LIGHT_VBO);
-  glDeleteBuffers(1, &LIGHT_EBO);
-
-  container_diffuse_map.deinit();
-  container_emission_map.deinit();
-  container_specular_map.deinit();
-  shader_program.deinit();
-  light_shader_program.deinit();
 
   glfwTerminate();
   FcFini();
@@ -480,7 +214,7 @@ int main() {
   return 0;
 }
 
-void processInput(GLFWwindow *window) {
+void process_input(GLFWwindow *window) {
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
     glfwSetWindowShouldClose(window, 1);
   }
@@ -541,4 +275,7 @@ void mouse_callback(GLFWwindow *, double x, double y) {
 
 void scroll_callback(GLFWwindow *, double, double y) {
   p_camera.set_fov(std::clamp(p_camera.get_fov() - y, 1.0, 45.0));
+  glm::perspective(glm::radians(static_cast<float>(p_camera.get_fov())),
+                   static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f,
+                   100.0f);
 }

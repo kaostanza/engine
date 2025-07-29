@@ -42,9 +42,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 -Wunused-parameter
 -Wstrict-null-sentinel
 -Wlogical-op
--fsanitize=address
 )
-target_link_options(${PROJECT_NAME} PRIVATE -fsanitize=address)
 target_link_libraries(${PROJECT_NAME} PRIVATE fontconfig glfw glad glm stb_image assimp)
 
 
