@@ -18,7 +18,6 @@
 #include "light.hpp"
 #include "model.hpp"
 #include "shader.hpp"
-#include "texture2D.hpp"
 
 // SCREEN + FOV
 int WIDTH = 800;
@@ -26,15 +25,15 @@ int HEIGHT = 600;
 double FOV = 45.0;
 
 // FLY CAMERA
-FlyCamera p_camera(glm::vec3(0.0, 0.0, 3.0), FOV);
+FlyCamera P_CAMERA(glm::vec3(0.0, 0.0, 3.0), FOV);
 float X_POS = static_cast<float>(WIDTH) / 2;
 float Y_POS = static_cast<float>(HEIGHT) / 2;
 
 // MATRIX TRANSFORM
-const auto identity = glm::mat4(1.0);
-auto view = p_camera.looking_at();
-auto projection = glm::perspective(
-    glm::radians(static_cast<float>(p_camera.get_fov())),
+const auto IDENTITY = glm::mat4(1.0);
+auto VIEW = P_CAMERA.looking_at();
+auto PROJECTION = glm::perspective(
+    glm::radians(static_cast<float>(P_CAMERA.get_fov())),
     static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
 
 // Time related stuff
@@ -42,10 +41,10 @@ double TIME = 0;
 double LAST_TIME = 0;
 double DELTA = 0;
 
-// Basic k_linear + quadratic + constant for pointlight attenuation
-constexpr float k_constant = 1;
-constexpr float k_linear = 0.09f;
-constexpr float k_quadratic = 0.032f;
+// Basic K_LINEAR + quadratic + constant for pointlight attenuation
+constexpr float K_CONSTANT = 1;
+constexpr float K_LINEAR = 0.09f;
+constexpr float K_QUADRATIC = 0.032f;
 
 void process_input(GLFWwindow *window);
 void resize_window_callback(GLFWwindow *window, int x, int y);
@@ -85,7 +84,6 @@ int main() {
   // To run destructor before we reach glfwTerminate() at the end of main
   // (avoid seg fault)
   {
-
     std::vector<PointLight> point_lights{PointLight{glm::vec3(5.0f, 0.0f, 5.0f),
                                                     LightInfo{
                                                         glm::vec3(0.1f),
@@ -94,9 +92,9 @@ int main() {
                                                     },
 
                                                     AttenuationInfo{
-                                                        k_constant,
-                                                        k_linear,
-                                                        k_quadratic,
+                                                        K_CONSTANT,
+                                                        K_LINEAR,
+                                                        K_QUADRATIC,
                                                     }
 
     }};
@@ -123,8 +121,6 @@ int main() {
     glfwSwapInterval(1);
 
     unsigned int frame_c = 0;
-    double smoothed_fps = 165.0f;
-    const auto alpha = 0.1f;
     const auto radius = 10.0;
 
     while (glfwWindowShouldClose(window) == 0) {
@@ -133,16 +129,15 @@ int main() {
       DELTA = TIME - LAST_TIME;
 
       const auto fps = 1 / DELTA;
-      smoothed_fps = alpha * fps + (1.0f - alpha) * smoothed_fps;
       if (frame_c++ % 30 == 0)
-        std::cout << "FPS: " << smoothed_fps << std::endl;
+        std::cout << "FPS: " << fps << std::endl;
 
       process_input(window);
 
       glClearColor(0, 0, 0, 1);
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-      view = p_camera.looking_at();
+      VIEW = P_CAMERA.looking_at();
 
       // make point lights move in a circle
       for (unsigned int i = 0; i < point_lights.size(); i++) {
@@ -154,13 +149,13 @@ int main() {
       model_shader_program.use();
 
       // Give the transform matrix
-      model_shader_program.set_uniform("view", view);
-      model_shader_program.set_uniform("projection", projection);
+      model_shader_program.set_uniform("view", VIEW);
+      model_shader_program.set_uniform("projection", PROJECTION);
       model_shader_program.set_uniform(
-          "model", glm::translate(glm::scale(identity, glm::vec3(1.0f)),
+          "model", glm::translate(glm::scale(IDENTITY, glm::vec3(1.0f)),
                                   glm::vec3(0.0, 0.0, 0.0)));
 
-      model_shader_program.set_uniform("camera_pos", p_camera.get_position());
+      model_shader_program.set_uniform("camera_pos", P_CAMERA.get_position());
 
       // Give light settings (disabled for now)
       model_shader_program.set_uniform(
@@ -231,24 +226,24 @@ void process_input(GLFWwindow *window) {
   const auto cam_speed = DELTA * speed;
 
   if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-    auto pos = p_camera.get_position();
-    pos += p_camera.forward() * glm::vec3(static_cast<float>(cam_speed));
-    p_camera.set_position(pos);
+    auto pos = P_CAMERA.get_position();
+    pos += P_CAMERA.forward() * glm::vec3(static_cast<float>(cam_speed));
+    P_CAMERA.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-    auto pos = p_camera.get_position();
-    pos -= p_camera.forward() * glm::vec3(static_cast<float>(cam_speed));
-    p_camera.set_position(pos);
+    auto pos = P_CAMERA.get_position();
+    pos -= P_CAMERA.forward() * glm::vec3(static_cast<float>(cam_speed));
+    P_CAMERA.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-    auto pos = p_camera.get_position();
-    pos -= p_camera.right() * glm::vec3(static_cast<float>(cam_speed));
-    p_camera.set_position(pos);
+    auto pos = P_CAMERA.get_position();
+    pos -= P_CAMERA.right() * glm::vec3(static_cast<float>(cam_speed));
+    P_CAMERA.set_position(pos);
   }
   if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-    auto pos = p_camera.get_position();
-    pos += p_camera.right() * glm::vec3(static_cast<float>(cam_speed));
-    p_camera.set_position(pos);
+    auto pos = P_CAMERA.get_position();
+    pos += P_CAMERA.right() * glm::vec3(static_cast<float>(cam_speed));
+    P_CAMERA.set_position(pos);
   }
 }
 
@@ -268,14 +263,14 @@ void mouse_callback(GLFWwindow *, double x, double y) {
   const auto sensitivity = 0.01;
   x_offset *= sensitivity;
   y_offset *= -sensitivity;
-  p_camera.set_yaw(p_camera.get_yaw() + static_cast<float>(x_offset));
-  p_camera.set_pitch(std::clamp(
-      p_camera.get_pitch() + static_cast<float>(y_offset), -89.9f, 89.9f));
+  P_CAMERA.set_yaw(P_CAMERA.get_yaw() + static_cast<float>(x_offset));
+  P_CAMERA.set_pitch(std::clamp(
+      P_CAMERA.get_pitch() + static_cast<float>(y_offset), -89.9f, 89.9f));
 }
 
 void scroll_callback(GLFWwindow *, double, double y) {
-  p_camera.set_fov(std::clamp(p_camera.get_fov() - y, 1.0, 45.0));
-  glm::perspective(glm::radians(static_cast<float>(p_camera.get_fov())),
-                   static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f,
-                   100.0f);
+  P_CAMERA.set_fov(std::clamp(P_CAMERA.get_fov() - y, 1.0, 45.0));
+  PROJECTION = glm::perspective(
+      glm::radians(static_cast<float>(P_CAMERA.get_fov())),
+      static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
 }

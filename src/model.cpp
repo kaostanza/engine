@@ -120,8 +120,8 @@ std::vector<Texture2D *> Model::load_material_textures(aiMaterial *material,
     }
 
     auto tex_start = std::chrono::high_resolution_clock::now();
-    std::unique_ptr<Texture2D> texture = std::make_unique<Texture2D>(
-        (this->dir + "/" + path.C_Str()).data(), builder);
+    Texture2D *texture =
+        new Texture2D((this->dir + "/" + path.C_Str()).data(), builder);
     auto tex_end = std::chrono::high_resolution_clock::now();
     std::cout << "Texture load time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -129,7 +129,7 @@ std::vector<Texture2D *> Model::load_material_textures(aiMaterial *material,
                      .count()
               << "ms (" << path.C_Str() << ")\n";
 
-    textures.push_back(texture.get());
+    textures.push_back(texture);
     this->loaded_textures.push_back(std::move(texture));
   }
   return textures;

@@ -2,7 +2,7 @@
 
 #include "assimp/scene.h"
 #include "mesh.hpp"
-#include <memory>
+#include "texture2D.hpp"
 
 struct ModelBuilder {
   bool flip_y = true;
@@ -13,15 +13,18 @@ public:
   Model(const char *path, const ModelBuilder builder = {}) {
     this->load_model(path, builder);
   }
+  ~Model() {
+    for (Texture2D *tex_ptr : loaded_textures)
+      delete tex_ptr;
+  }
   void draw(Shader &shader) {
-    for (const Mesh &mesh : this->meshes) {
+    for (const Mesh &mesh : this->meshes)
       mesh.draw(shader);
-    }
   };
 
 private:
   std::vector<Mesh> meshes;
-  std::vector<std::unique_ptr<Texture2D>> loaded_textures;
+  std::vector<Texture2D *> loaded_textures;
   std::string dir;
 
   void load_model(const std::string &path, const ModelBuilder &builder);
