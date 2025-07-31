@@ -28,13 +28,16 @@ double FOV = 45.0;
 FlyCamera P_CAMERA(glm::vec3(0.0, 0.0, 3.0), FOV);
 float X_POS = static_cast<float>(WIDTH) / 2;
 float Y_POS = static_cast<float>(HEIGHT) / 2;
+float NEAR_PLANE = 0.1f;
+float FAR_PLANE = 1000.0f;
 
 // MATRIX TRANSFORM
 const auto IDENTITY = glm::mat4(1.0);
 auto VIEW = P_CAMERA.looking_at();
-auto PROJECTION = glm::perspective(
-    glm::radians(static_cast<float>(P_CAMERA.get_fov())),
-    static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
+auto PROJECTION =
+    glm::perspective(glm::radians(static_cast<float>(P_CAMERA.get_fov())),
+                     static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
+                     NEAR_PLANE, FAR_PLANE);
 
 // Time related stuff
 double TIME = 0;
@@ -42,9 +45,9 @@ double LAST_TIME = 0;
 double DELTA = 0;
 
 // Basic K_LINEAR + quadratic + constant for pointlight attenuation
-constexpr float K_CONSTANT = 1;
-constexpr float K_LINEAR = 0.09f;
-constexpr float K_QUADRATIC = 0.032f;
+// constexpr float K_CONSTANT = 1;
+// constexpr float K_LINEAR = 0.09f;
+// constexpr float K_QUADRATIC = 0.032f;
 
 void process_input(GLFWwindow *window);
 void resize_window_callback(GLFWwindow *window, int x, int y);
@@ -84,24 +87,11 @@ int main() {
   // To run destructor before we reach glfwTerminate() at the end of main
   // (avoid seg fault)
   {
-    std::vector<PointLight> point_lights{PointLight{glm::vec3(5.0f, 0.0f, 5.0f),
-                                                    LightInfo{
-                                                        glm::vec3(0.1f),
-                                                        glm::vec3(0.5f),
-                                                        glm::vec3(1.0f),
-                                                    },
+    std::vector<PointLight> point_lights{};
+    std::vector<DirectionalLight> directionnal_lights{};
+    std::vector<SpotLight> spot_lights{};
 
-                                                    AttenuationInfo{
-                                                        K_CONSTANT,
-                                                        K_LINEAR,
-                                                        K_QUADRATIC,
-                                                    }
-
-    }};
-    std::vector<DirectionalLight> directionnal_lights;
-    std::vector<SpotLight> spot_lights;
-
-    Model backpack("../assets/models/backpack/backpack.obj");
+    Model sponza("../assets/models/sponza/scene.gltf");
 
     Shader model_shader_program;
     model_shader_program.add_shader<VertexShader>(
@@ -190,7 +180,7 @@ int main() {
       // give the camera position for lightining calculation
       model_shader_program.set_uniform("material.shininess", 32.0f);
       model_shader_program.set_uniform("material.emission", 2);
-      backpack.draw(model_shader_program);
+      sponza.draw(model_shader_program);
 
       const auto gl_error = glGetError();
       if (gl_error != GL_NO_ERROR) {
@@ -270,7 +260,8 @@ void mouse_callback(GLFWwindow *, double x, double y) {
 
 void scroll_callback(GLFWwindow *, double, double y) {
   P_CAMERA.set_fov(std::clamp(P_CAMERA.get_fov() - y, 1.0, 45.0));
-  PROJECTION = glm::perspective(
-      glm::radians(static_cast<float>(P_CAMERA.get_fov())),
-      static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
+  PROJECTION =
+      glm::perspective(glm::radians(static_cast<float>(P_CAMERA.get_fov())),
+                       static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
+                       NEAR_PLANE, FAR_PLANE);
 }

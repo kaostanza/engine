@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(CMAKE_C_COMPILER "/usr/bin/clang")
+set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+
 find_package(glfw3 REQUIRED)
 
 add_library(glad STATIC)
@@ -20,9 +23,18 @@ target_include_directories(glm SYSTEM INTERFACE dependencies/glm)
 add_library(stb_image INTERFACE)
 target_include_directories(stb_image SYSTEM INTERFACE dependencies/stb_loader)
 
-FetchContent_Declare(assimp  GIT_REPOSITORY https://github.com/assimp/assimp.git GIT_TAG master) 
+FetchContent_Declare(assimp  
+    GIT_REPOSITORY https://github.com/assimp/assimp.git 
+    GIT_TAG master
+) 
 set(ASSIMP_BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(assimp)
+
+get_target_property(assimp_includes assimp INTERFACE_INCLUDE_DIRECTORIES)
+if(assimp_includes)
+    set_target_properties(assimp PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+    target_include_directories(assimp SYSTEM INTERFACE ${assimp_includes})
+endif()
 
 add_executable(${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PRIVATE src/main.cpp src/shader.cpp src/mesh.cpp src/model.cpp src/stb_image_loader.cpp)
@@ -40,9 +52,19 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 -Wunreachable-code
 -Wunused
 -Wunused-parameter
--Wstrict-null-sentinel
--Wlogical-op
+-Wloop-analysis
+-Wmove
+-Wcomma
+-Wdocumentation
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE fontconfig glfw glad glm stb_image assimp)
+
+message(STATUS "C compiler: ${CMAKE_C_COMPILER}")
+message(STATUS "CXX compiler: ${CMAKE_CXX_COMPILER}")
+message(STATUS "Compiler ID: ${CMAKE_CXX_COMPILER_ID}")
+
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    message(FATAL_ERROR "This project requires Clang compiler")
+endif()
 
 
