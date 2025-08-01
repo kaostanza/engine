@@ -9,6 +9,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 
 #include <algorithm>
 #include <iostream>
@@ -113,6 +116,10 @@ int main() {
     unsigned int frame_c = 0;
     const auto radius = 10.0;
 
+    ImGui::CreateContext();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 330 core");
+
     while (glfwWindowShouldClose(window) == 0) {
       LAST_TIME = TIME;
       TIME = glfwGetTime();
@@ -121,6 +128,20 @@ int main() {
       const auto fps = 1 / DELTA;
       if (frame_c++ % 30 == 0)
         std::cout << "FPS: " << fps << std::endl;
+
+      ImGui_ImplOpenGL3_NewFrame();
+      ImGui_ImplGlfw_NewFrame();
+      ImGui::NewFrame();
+
+      {
+        ImGui::Begin("Hello, world!");
+        if (ImGui::Button("Wireframe"))
+          glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        if (ImGui::Button("Default"))
+          glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+        ImGui::End();
+      }
 
       process_input(window);
 
@@ -188,6 +209,8 @@ int main() {
                   << "-> " << gl_error << std::endl;
       }
 
+      ImGui::Render();
+      ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
       glfwSwapBuffers(window);
       glfwPollEvents();
     }
