@@ -9,17 +9,16 @@ const auto UP = glm::vec3(0.0, 1.0, 0.0);
 class FlyCamera {
 public:
   FlyCamera();
-  FlyCamera(glm::vec3 position_, double fov_)
-      : position(position_), fov(fov_) {}
+  FlyCamera(glm::vec3 position_, float fov_) : position(position_), fov(fov_) {}
   ~FlyCamera() = default;
 
-  glm::vec3 get_position() const { return this->position; }
-  double get_fov() const { return this->fov; }
-  float get_yaw() const { return this->yaw; }
-  float get_pitch() const { return this->pitch; }
+  const glm::vec3 &get_position() const { return this->position; }
+  const float &get_fov() const { return this->fov; }
+  const float &get_yaw() const { return this->yaw; }
+  const float &get_pitch() const { return this->pitch; }
 
   void set_position(glm::vec3 pos) { this->position = pos; }
-  void set_fov(double fov_) { this->fov = fov_; }
+  void set_fov(float fov_) { this->fov = fov_; }
   void set_yaw(float yaw_) { this->yaw = yaw_; }
   void set_pitch(float pitch_) { this->pitch = pitch_; }
 
@@ -39,7 +38,7 @@ public:
 private:
   glm::vec3 position;
   glm::vec3 direction;
-  double fov;
+  float fov;
   float yaw = -90.0;
   float pitch = 0;
 };

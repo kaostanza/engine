@@ -31,10 +31,10 @@ enum class DepthMode {
 // SCREEN + FOV
 int WIDTH = 800;
 int HEIGHT = 600;
-double FOV = 45.0;
+constexpr float DEFAULT_FOV = 45.0f;
 
 // FLY CAMERA
-FlyCamera P_CAMERA(glm::vec3(0.0, 0.0, 3.0), FOV);
+FlyCamera P_CAMERA(glm::vec3(0.0, 0.0, 3.0), DEFAULT_FOV);
 float X_POS = static_cast<float>(WIDTH) / 2;
 float Y_POS = static_cast<float>(HEIGHT) / 2;
 float NEAR_PLANE = 0.1f;
@@ -166,12 +166,13 @@ int main() {
 
       {
         ImGui::Begin("Kaos Engine");
+        float fov = P_CAMERA.get_fov();
 
         if (ImGui::Checkbox("Wireframe:", &wireframe_mode)) {
           if (wireframe_mode)
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
           else
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
 
         if (ImGui::Combo("Depth Mode", &depth_mode_option, depth_options,
@@ -188,6 +189,15 @@ int main() {
             shader_in_use = &non_linear_depth_program;
             break;
           }
+        }
+
+        if (ImGui::SliderFloat("FOV", &fov, 1.0f, 45.0f)) {
+          std::cout << "New FOV is " << fov << std::endl;
+          P_CAMERA.set_fov(fov);
+          PROJECTION = glm::perspective(
+              glm::radians(static_cast<float>(P_CAMERA.get_fov())),
+              static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
+              NEAR_PLANE, FAR_PLANE);
         }
 
         ImGui::End();
@@ -342,7 +352,8 @@ void mouse_callback(GLFWwindow *, double x, double y) {
 }
 
 void scroll_callback(GLFWwindow *, double, double y) {
-  P_CAMERA.set_fov(std::clamp(P_CAMERA.get_fov() - y, 1.0, 45.0));
+  P_CAMERA.set_fov(
+      std::clamp(P_CAMERA.get_fov() - static_cast<float>(y), 1.0f, 45.0f));
   PROJECTION =
       glm::perspective(glm::radians(static_cast<float>(P_CAMERA.get_fov())),
                        static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
