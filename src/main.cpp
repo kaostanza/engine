@@ -1,10 +1,6 @@
 #include "glad/glad.h"
-#include "glm/detail/func_trigonometric.hpp"
-#include "glm/detail/type_mat.hpp"
-#include "glm/detail/type_vec.hpp"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
-#include <cmath>
 #include <fontconfig/fontconfig.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -22,15 +18,16 @@
 #include "model.hpp"
 #include "shader.hpp"
 
-enum class DepthMode {
+enum class RenderMode {
   None = 0,
-  Linear = 1,
-  NonLinear = 2,
+  Normal,
+  Depth_Linear,
+  Depth_NonLinear,
 };
 
 // SCREEN + FOV
-int WIDTH = 800;
-int HEIGHT = 600;
+int WIDTH = 1920;
+int HEIGHT = 1080;
 constexpr float DEFAULT_FOV = 45.0f;
 
 // FLY CAMERA
@@ -55,15 +52,12 @@ double TIME = 0;
 double LAST_TIME = 0;
 double DELTA = 0;
 
-// Basic K_LINEAR + quadratic + constant for pointlight attenuation
-// constexpr float K_CONSTANT = 1;
-// constexpr float K_LINEAR = 0.09f;
-// constexpr float K_QUADRATIC = 0.032f;
-
 void process_input(GLFWwindow *window);
 void resize_window_callback(GLFWwindow *window, int x, int y);
 void mouse_callback(GLFWwindow *window, double x, double y);
 void scroll_callback(GLFWwindow *window, double x, double y);
+
+void redefine_projection_matrix();
 
 int main() {
   if (FcInit() == 0) {
@@ -126,9 +120,17 @@ int main() {
         "../src/shaders/model_fragment.glsl");
     model_shader_program.link();
 
+    Shader normal_shader_program;
+    normal_shader_program.add_shader<VertexShader>(
+        "../src/shaders/model_vertex.glsl");
+
+    normal_shader_program.add_shader<FragmentShader>(
+        "../src/shaders/normal.frag.glsl");
+    normal_shader_program.link();
+
     Shader *shader_in_use = &model_shader_program;
 
-    Model sponza("../assets/models/sponza/scene.gltf");
+    Model sponza("../assets/models/backpack/backpack.obj");
 
     // Wireframe mode
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -141,13 +143,14 @@ int main() {
     glfwSwapInterval(1);
 
     unsigned int frame_c = 0;
-    const auto radius = 10.0;
+    double fps = 165.0f;
 
     ImGui::CreateContext();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330 core");
 
-    const char *depth_options[] = {"None", "Linear", "Non-Linear"};
+    const char *depth_options[] = {"None", "Normal", "Depth_Linear",
+                                   "Depth_Non-Linear"};
     bool wireframe_mode = false;
     int depth_mode_option = 0;
 
@@ -156,9 +159,8 @@ int main() {
       TIME = glfwGetTime();
       DELTA = TIME - LAST_TIME;
 
-      const auto fps = 1 / DELTA;
       if (frame_c++ % 30 == 0)
-        std::cout << "FPS: " << fps << std::endl;
+        fps = 1 / DELTA;
 
       ImGui_ImplOpenGL3_NewFrame();
       ImGui_ImplGlfw_NewFrame();
@@ -168,40 +170,195 @@ int main() {
         ImGui::Begin("Kaos Engine");
         float fov = P_CAMERA.get_fov();
 
-        if (ImGui::Checkbox("Wireframe:", &wireframe_mode)) {
-          if (wireframe_mode)
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-          else
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        if (ImGui::CollapsingHeader("Debug")) {
+          ImGui::Text("FPS: %f", fps);
         }
 
-        if (ImGui::Combo("Depth Mode", &depth_mode_option, depth_options,
-                         sizeof((depth_options)) / sizeof(depth_options[0]))) {
+        if (ImGui::CollapsingHeader("Rendering")) {
+          if (ImGui::Checkbox("Wireframe:", &wireframe_mode)) {
+            if (wireframe_mode)
+              glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            else
+              glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+          }
 
-          switch (static_cast<DepthMode>(depth_mode_option)) {
-          case DepthMode::None:
-            shader_in_use = &model_shader_program;
-            break;
-          case DepthMode::Linear:
-            shader_in_use = &linear_depth_program;
-            break;
-          case DepthMode::NonLinear:
-            shader_in_use = &non_linear_depth_program;
-            break;
+          if (ImGui::Combo("Depth Mode", &depth_mode_option, depth_options,
+                           sizeof((depth_options)) /
+                               sizeof(depth_options[0]))) {
+
+            switch (static_cast<RenderMode>(depth_mode_option)) {
+            case RenderMode::None:
+              shader_in_use = &model_shader_program;
+              break;
+            case RenderMode::Normal:
+              shader_in_use = &normal_shader_program;
+              break;
+            case RenderMode::Depth_Linear:
+              shader_in_use = &linear_depth_program;
+              break;
+            case RenderMode::Depth_NonLinear:
+              shader_in_use = &non_linear_depth_program;
+              break;
+            }
           }
         }
 
-        if (ImGui::SliderFloat("FOV", &fov, 1.0f, 45.0f)) {
-          std::cout << "New FOV is " << fov << std::endl;
-          P_CAMERA.set_fov(fov);
-          PROJECTION = glm::perspective(
-              glm::radians(static_cast<float>(P_CAMERA.get_fov())),
-              static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
-              NEAR_PLANE, FAR_PLANE);
+        if (ImGui::CollapsingHeader("Player")) {
+          auto pos = P_CAMERA.get_position();
+          ImGui::Text("Position:");
+          if (ImGui::DragFloat3("##pos", &pos.x, 0.1f)) {
+            P_CAMERA.set_position(pos);
+          }
+
+          if (ImGui::TreeNode("Camera")) {
+            if (ImGui::SliderFloat("FOV", &fov, 1.0f, 45.0f)) {
+              std::cout << "New FOV is " << fov << std::endl;
+              P_CAMERA.set_fov(fov);
+              redefine_projection_matrix();
+            }
+
+            if (ImGui::SliderFloat("Near", &NEAR_PLANE, 0.1f, 1000.0f))
+              redefine_projection_matrix();
+
+            if (ImGui::SliderFloat("Far", &FAR_PLANE, 0.1f, 10000.0f))
+              redefine_projection_matrix();
+
+            ImGui::TreePop();
+          }
+        }
+
+        if (ImGui::CollapsingHeader("Lightning")) {
+          if (ImGui::TreeNode("Point Lights")) {
+            uint i = 0;
+            for (auto &l : point_lights) {
+              std::string light_label = "Light " + std::to_string(i);
+
+              if (ImGui::TreeNode(light_label.c_str())) {
+                ImGui::Text("Position:");
+                ImGui::DragFloat3("##pos", &l.position.x, 0.1f);
+
+                ImGui::Text("Ambient:");
+                ImGui::DragFloat3("##amb", &l.info.ambient.x, 0.01f);
+
+                ImGui::Text("Specular:");
+                ImGui::DragFloat3("##spec", &l.info.specular.x, 0.01f);
+
+                ImGui::Text("Diffuse:");
+                ImGui::DragFloat3("##diff", &l.info.diffuse.x, 0.01f);
+
+                ImGui::Text("Attenuation:");
+                ImGui::DragFloat("Constant", &l.attenuation_info.constant,
+                                 0.01f);
+                ImGui::DragFloat("Linear", &l.attenuation_info.linear, 0.01f);
+                ImGui::DragFloat("Quadratic", &l.attenuation_info.quadratic,
+                                 0.001f);
+
+                if (ImGui::Button(("Delete##" + std::to_string(i)).c_str())) {
+                  point_lights.erase(point_lights.begin() + i);
+                  ImGui::TreePop();
+                  break;
+                }
+
+                ImGui::TreePop();
+              }
+              i++;
+            }
+
+            if (ImGui::Button("Add Point Light")) {
+              point_lights.push_back(PointLight{});
+            }
+
+            ImGui::TreePop();
+          }
+          // Directional Lights
+          if (ImGui::TreeNode("Directional Lights")) {
+            uint i = 0;
+            for (auto &l : directionnal_lights) {
+              std::string light_label = "Dir Light " + std::to_string(i);
+
+              if (ImGui::TreeNode(light_label.c_str())) {
+                ImGui::Text("Direction:");
+                ImGui::DragFloat3("##dir", &l.direction.x, 0.1f);
+
+                ImGui::Text("Ambient:");
+                ImGui::DragFloat3("##amb", &l.info.ambient.x, 0.01f);
+
+                ImGui::Text("Specular:");
+                ImGui::DragFloat3("##spec", &l.info.specular.x, 0.01f);
+
+                ImGui::Text("Diffuse:");
+                ImGui::DragFloat3("##diff", &l.info.diffuse.x, 0.01f);
+
+                if (ImGui::Button(("Delete##" + std::to_string(i)).c_str())) {
+                  directionnal_lights.erase(directionnal_lights.begin() + i);
+                  ImGui::TreePop();
+                  break;
+                }
+
+                ImGui::TreePop();
+              }
+              i++;
+            }
+
+            if (ImGui::Button("Add Directional Light")) {
+              directionnal_lights.push_back(DirectionalLight{});
+            }
+
+            ImGui::TreePop();
+          }
+
+          // Spot Lights
+          if (ImGui::TreeNode("Spot Lights")) {
+            uint i = 0;
+            for (auto &l : spot_lights) {
+              std::string light_label = "Spot Light " + std::to_string(i);
+
+              if (ImGui::TreeNode(light_label.c_str())) {
+                ImGui::Text("Position:");
+                ImGui::DragFloat3("##pos", &l.position.x, 0.1f);
+
+                ImGui::Text("Direction:");
+                ImGui::DragFloat3("##dir", &l.direction.x, 0.1f);
+
+                ImGui::Text("Ambient:");
+                ImGui::DragFloat3("##amb", &l.info.ambient.x, 0.01f);
+
+                ImGui::Text("Specular:");
+                ImGui::DragFloat3("##spec", &l.info.specular.x, 0.01f);
+
+                ImGui::Text("Diffuse:");
+                ImGui::DragFloat3("##diff", &l.info.diffuse.x, 0.01f);
+
+                ImGui::Text("Attenuation:");
+                ImGui::DragFloat("Constant", &l.attenuation_info.constant,
+                                 0.01f);
+                ImGui::DragFloat("Linear", &l.attenuation_info.linear, 0.01f);
+                ImGui::DragFloat("Quadratic", &l.attenuation_info.quadratic,
+                                 0.001f);
+
+                if (ImGui::Button(("Delete##" + std::to_string(i)).c_str())) {
+                  spot_lights.erase(spot_lights.begin() + i);
+                  ImGui::TreePop();
+                  break;
+                }
+
+                ImGui::TreePop();
+              }
+              i++;
+            }
+
+            if (ImGui::Button("Add Spot Light")) {
+              spot_lights.push_back(SpotLight{});
+            }
+
+            ImGui::TreePop();
+          }
         }
 
         ImGui::End();
       }
+
+      ImGui::ShowDemoWindow();
 
       process_input(window);
 
@@ -210,12 +367,6 @@ int main() {
 
       VIEW = P_CAMERA.looking_at();
 
-      // make point lights move in a circle
-      for (unsigned int i = 0; i < point_lights.size(); i++) {
-        point_lights[i].position.x = static_cast<float>(sin(TIME + i) * radius);
-        point_lights[i].position.z = static_cast<float>(cos(TIME + i) * radius);
-      }
-
       // Backpack
       shader_in_use->use();
 
@@ -223,7 +374,7 @@ int main() {
       shader_in_use->set_uniform("view", VIEW);
       shader_in_use->set_uniform("projection", PROJECTION);
       shader_in_use->set_uniform(
-          "model", glm::translate(glm::scale(IDENTITY, glm::vec3(0.01f)),
+          "model", glm::translate(glm::scale(IDENTITY, glm::vec3(1.0f)),
                                   glm::vec3(0.0, 0.0, 0.0)));
 
       shader_in_use->set_uniform("camera_pos", P_CAMERA.get_position());
@@ -354,6 +505,13 @@ void mouse_callback(GLFWwindow *, double x, double y) {
 void scroll_callback(GLFWwindow *, double, double y) {
   P_CAMERA.set_fov(
       std::clamp(P_CAMERA.get_fov() - static_cast<float>(y), 1.0f, 45.0f));
+  PROJECTION =
+      glm::perspective(glm::radians(static_cast<float>(P_CAMERA.get_fov())),
+                       static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),
+                       NEAR_PLANE, FAR_PLANE);
+}
+
+void redefine_projection_matrix() {
   PROJECTION =
       glm::perspective(glm::radians(static_cast<float>(P_CAMERA.get_fov())),
                        static_cast<float>(WIDTH) / static_cast<float>(HEIGHT),

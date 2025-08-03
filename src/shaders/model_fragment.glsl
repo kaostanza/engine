@@ -51,8 +51,8 @@ struct Material {
 #define MAX_SPOT_LIGHTS 4
 #define MAX_DIRECTIONNAL_LIGHTS 4
 
-uniform DirectionalLight directionnal_light[MAX_DIRECTIONNAL_LIGHTS];
-uniform SpotLight spot_light[MAX_SPOT_LIGHTS];
+uniform DirectionalLight directionnal_lights[MAX_DIRECTIONNAL_LIGHTS];
+uniform SpotLight spot_lights[MAX_SPOT_LIGHTS];
 uniform PointLight point_lights[MAX_POINT_LIGHTS];
 
 uniform Material material; 
@@ -79,14 +79,14 @@ void main()
   vec3 emission = vec3(texture(material.emission, tex_coord));
 
   for (uint i = 0u; i<directionnal_lights_count; i++)
-		  output += process_directionnal_light(directionnal_light[i], pos, camera_pos, normal);
+		  output += process_directionnal_light(directionnal_lights[i], pos, camera_pos, normal);
 
   for (uint i=0u; i<point_lights_count; i++) 
 		  output += process_point_light(point_lights[i], pos, camera_pos, normal);
   
 
   for (uint i=0u; i<spot_lights_count; i++)
-		  output += process_spot_light(spot_light[i], pos, camera_pos, normal);
+		  output += process_spot_light(spot_lights[i], pos, camera_pos, normal);
 
   FragColor = vec4(output + emission , 1.0f);
 }

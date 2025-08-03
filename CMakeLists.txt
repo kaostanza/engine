@@ -17,11 +17,15 @@ target_sources(glad PRIVATE dependencies/glad/src/glad.c)
 set_target_properties(glad PROPERTIES LINKER_LANGUAGE C)
 target_include_directories(glad PUBLIC dependencies/glad/include)
 
-add_library(glm INTERFACE)
-target_include_directories(glm SYSTEM INTERFACE dependencies/glm)
-
 add_library(stb_image INTERFACE)
 target_include_directories(stb_image SYSTEM INTERFACE dependencies/stb_loader)
+
+FetchContent_Declare(glm 
+		GIT_REPOSITORY https://github.com/g-truc/glm.git
+		GIT_TAG master 
+)
+FetchContent_MakeAvailable(glm)
+target_include_directories(glm SYSTEM INTERFACE ${glm_SOURCE_DIR})
 
 FetchContent_Declare(imgui
 		GIT_REPOSITORY https://github.com/ocornut/imgui.git

@@ -4,6 +4,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+// Basic K_LINEAR + quadratic + constant for pointlight attenuation
+constexpr float K_CONSTANT = 1;
+constexpr float K_LINEAR = 0.09f;
+constexpr float K_QUADRATIC = 0.032f;
+
 struct LightInfo {
   glm::vec3 ambient;
   glm::vec3 specular;
@@ -11,9 +16,9 @@ struct LightInfo {
 };
 
 struct AttenuationInfo {
-  float constant;
-  float linear;
-  float quadratic;
+  float constant = K_CONSTANT;
+  float linear = K_LINEAR;
+  float quadratic = K_QUADRATIC;
 };
 
 struct PointLight {
