@@ -6,7 +6,6 @@
 #include "texture2D.hpp"
 #include <chrono>
 #include <cstring>
-#include <memory>
 #include <stdexcept>
 
 void Model::load_model(const std::string &path, const ModelBuilder &builder) {

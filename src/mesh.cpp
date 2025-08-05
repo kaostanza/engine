@@ -3,7 +3,7 @@
 #include "texture2D.hpp"
 #include <cstddef>
 
-void Mesh::draw(Shader &shader) const {
+void Mesh::draw(const Shader &shader) const {
   for (unsigned int i = 0; i < textures.size(); ++i) {
     glActiveTexture(GL_TEXTURE0 + i);
     textures[i]->bind();
@@ -19,6 +19,14 @@ void Mesh::draw(Shader &shader) const {
 
   glBindVertexArray(0);
   glActiveTexture(GL_TEXTURE0);
+}
+
+void Mesh::draw_without_texture() const {
+  glBindVertexArray(this->VAO);
+  glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(this->indices.size()),
+                 GL_UNSIGNED_INT, 0);
+
+  glBindVertexArray(0);
 }
 
 void Mesh::setup() {

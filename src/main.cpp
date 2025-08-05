@@ -128,6 +128,13 @@ int main() {
         "../src/shaders/normal.frag.glsl");
     normal_shader_program.link();
 
+    Shader outline_model_shader_program;
+    outline_model_shader_program.add_shader<VertexShader>(
+        "../src/shaders/model_vertex.glsl");
+    outline_model_shader_program.add_shader<FragmentShader>(
+        "../src/shaders/outline_models.frag.glsl");
+    outline_model_shader_program.link();
+
     Shader *shader_in_use = &model_shader_program;
 
     Model sponza("../assets/models/backpack/backpack.obj");
@@ -136,7 +143,9 @@ int main() {
     // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     // Default mode
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_STENCIL_TEST);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     // VSYNC (1 = ON, 0 = OFF)
@@ -152,6 +161,7 @@ int main() {
     const char *depth_options[] = {"None", "Normal", "Depth_Linear",
                                    "Depth_Non-Linear"};
     bool wireframe_mode = false;
+    RenderOptions render_options;
     int depth_mode_option = 0;
 
     while (glfwWindowShouldClose(window) == 0) {
@@ -199,6 +209,16 @@ int main() {
             case RenderMode::Depth_NonLinear:
               shader_in_use = &non_linear_depth_program;
               break;
+            }
+          }
+
+          bool outlining;
+          if (ImGui::Checkbox("Outline", &outlining)) {
+            if (outlining) {
+              render_options = RenderOptions{
+                  true, Outline{glm::vec3(1.0, 0.0, 0.0), glm::vec3(1.01f)}};
+            } else {
+              render_options = RenderOptions();
             }
           }
         }
@@ -336,6 +356,10 @@ int main() {
                 ImGui::DragFloat("Quadratic", &l.attenuation_info.quadratic,
                                  0.001f);
 
+                ImGui::Text("Area:");
+                ImGui::DragFloat("Inner", &l.inner_cut_off, 0.01f, 100.0f);
+                ImGui::DragFloat("Outer", &l.outer_cut_off, 0.01f, 100.0f);
+
                 if (ImGui::Button(("Delete##" + std::to_string(i)).c_str())) {
                   spot_lights.erase(spot_lights.begin() + i);
                   ImGui::TreePop();
@@ -358,24 +382,16 @@ int main() {
         ImGui::End();
       }
 
-      ImGui::ShowDemoWindow();
-
       process_input(window);
 
       glClearColor(0, 0, 0, 1);
-      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT |
+              GL_STENCIL_BUFFER_BIT);
 
       VIEW = P_CAMERA.looking_at();
 
       // Backpack
       shader_in_use->use();
-
-      // Give the transform matrix
-      shader_in_use->set_uniform("view", VIEW);
-      shader_in_use->set_uniform("projection", PROJECTION);
-      shader_in_use->set_uniform(
-          "model", glm::translate(glm::scale(IDENTITY, glm::vec3(1.0f)),
-                                  glm::vec3(0.0, 0.0, 0.0)));
 
       shader_in_use->set_uniform("camera_pos", P_CAMERA.get_position());
 
@@ -412,11 +428,18 @@ int main() {
       // give the camera position for lightining calculation
       shader_in_use->set_uniform("material.shininess", 32.0f);
       shader_in_use->set_uniform("material.emission", 2);
-      sponza.draw(*shader_in_use);
 
-      const auto gl_error = glGetError();
-      if (gl_error != GL_NO_ERROR) {
-        std::cout << "Erreur: Impossible de render\n"
+      // Drawing the model
+      sponza.set_render_options(render_options);
+      sponza.draw(
+          *shader_in_use,
+          Transform{VIEW, PROJECTION,
+                    glm::translate(glm::scale(IDENTITY, glm::vec3(1.0f)),
+                                   glm::vec3(0.0, 0.0, 0.0))});
+
+      GLenum gl_error;
+      if ((gl_error = glGetError()) != GL_NO_ERROR) {
+        std::cout << "Erreur: OpenGL\n"
                   << "-> " << gl_error << std::endl;
       }
 

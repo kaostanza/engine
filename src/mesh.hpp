@@ -30,7 +30,8 @@ public:
   // to do (maybe ok idk) no its fine
   ~Mesh() = default;
 
-  void draw(Shader &shader) const;
+  void draw(const Shader &shader) const;
+  void draw_without_texture() const;
 
 private:
   unsigned int VAO, VBO, EBO;

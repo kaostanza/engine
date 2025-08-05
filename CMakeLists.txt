@@ -7,11 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_C_COMPILER "/usr/bin/clang")
-set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
-
 find_package(glfw3 REQUIRED)
-
 add_library(glad STATIC)
 target_sources(glad PRIVATE dependencies/glad/src/glad.c)
 set_target_properties(glad PROPERTIES LINKER_LANGUAGE C)
@@ -26,6 +22,14 @@ FetchContent_Declare(glm
 )
 FetchContent_MakeAvailable(glm)
 target_include_directories(glm SYSTEM INTERFACE ${glm_SOURCE_DIR})
+
+FetchContent_Declare(entt
+		GIT_REPOSITORY 	https://github.com/skypjack/entt.git
+		GIT_TAG master 
+)
+FetchContent_MakeAvailable(entt)
+add_library(entt INTERFACE) 
+target_include_directories(entt SYSTEM INTERFACE ${entt_SOURCE_DIR}/src)
 
 FetchContent_Declare(imgui
 		GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -60,7 +64,7 @@ if(assimp_includes)
 endif()
 
 add_executable(${PROJECT_NAME})
-target_sources(${PROJECT_NAME} PRIVATE src/main.cpp src/shader.cpp src/mesh.cpp src/model.cpp src/stb_image_loader.cpp)
+target_sources(${PROJECT_NAME} PRIVATE src/main.cpp src/shader.cpp src/mesh.cpp src/model.cpp src/stb_image_loader.cpp src/app.cpp)
 target_compile_options(${PROJECT_NAME} PRIVATE
 -Wall
 -Wextra
@@ -80,7 +84,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 -Wcomma
 -Wdocumentation
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE fontconfig glfw glad glm stb_image assimp imgui)
+target_link_libraries(${PROJECT_NAME} PRIVATE fontconfig glfw glad glm stb_image assimp imgui entt)
 
 message(STATUS "C compiler: ${CMAKE_C_COMPILER}")
 message(STATUS "CXX compiler: ${CMAKE_CXX_COMPILER}")
